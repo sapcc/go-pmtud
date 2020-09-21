@@ -1,4 +1,4 @@
-IMAGE	 := hub.global.cloud.sap/monsoon/go-pmtud
+IMAGE	 := keppel.eu-de-1.cloud.sap/ccloud/go-pmtud
 DATE     := $(shell date +%Y%m%d%H%M%S)
 VERSION  ?= v$(DATE)
 
