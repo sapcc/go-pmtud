@@ -3,10 +3,12 @@ package cmd
 import (
 	"context"
 	"errors"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sapcc/go-pmtud/pkg/metrics"
 	"os/signal"
 	"syscall"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sapcc/go-pmtud/pkg/metrics"
+	"github.com/vishvananda/netlink"
 
 	"log"
 	"net"
@@ -27,17 +29,18 @@ var nodeName string
 var metricsPort int
 var ttl int
 var nfGroup uint16
+
 // var hostIP net.IP
 
 func init() {
 	flag.StringVar(&iface, "iface", "", "Network interface to work on")
 	flag.StringVar(&nodeName, "nodename", "", "Node hostname")
-	flag.StringSliceVar(&peers, "peers",nil, "Resend ICMP packets to this peer list (comma separated)")
+	flag.StringSliceVar(&peers, "peers", nil, "Resend ICMP packets to this peer list (comma separated)")
 	flag.IntVar(&metricsPort, "metrics-port", 30040, "Port for Prometheus metrics")
 	flag.Uint16Var(&nfGroup, "nflog-group", 33, "NFLOG group")
 	flag.IntVar(&ttl, "ttl", 1, "TTL for resent packets")
 
- 	klog.InitFlags(nil)
+	klog.InitFlags(nil)
 	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 	flag.Parse()
 
@@ -61,11 +64,23 @@ func Run() error {
 		cancel()
 	}()
 
+	var nodeIface string
+	if iface != "" {
+		nodeIface = iface
+	} else {
+		// find outgoing interface of default gateway if interface was not specified
+		var err error
+		nodeIface, err = getIface()
+		if err != nil {
+			return err
+		}
+	}
 	// get own IP
-	myIP, err := getOwnIP()
+	klog.Infof("Working with iface %s", nodeIface)
+	myIP, err := getIfaceIP(nodeIface)
 	if err != nil {
 		metrics.Error.WithLabelValues(nodeName).Inc()
-		klog.Errorf("Unable to get own IP address: %v", err)
+		klog.Fatalf("Unable to get own IP address: %v", err)
 	}
 
 	// Serve metrics on same interface
@@ -165,8 +180,8 @@ func Run() error {
 }
 
 // getOwnIP gets a valid IP address of specified interface
-func getOwnIP() (string, error) {
-	i, err := net.InterfaceByName(iface)
+func getIfaceIP(intf string) (string, error) {
+	i, err := net.InterfaceByName(intf)
 	if err != nil {
 		return "", err
 	}
@@ -190,4 +205,20 @@ func getOwnIP() (string, error) {
 		return ip.String(), nil
 	}
 	return "", errors.New("not connected to the network")
+}
+
+// getIface gets an interface of the default route
+func getIface() (string, error) {
+	// Internet is where 8.8.8.8 lives
+	var defaultRoute, _ , _ = net.ParseCIDR("8.8.8.8/32")
+	route, err := netlink.RouteGet(defaultRoute)
+	if err != nil {
+		klog.Fatalf("could not get default route: %v", err)
+	}
+	ifindex := route[0].LinkIndex
+	iface, err := net.InterfaceByIndex(ifindex)
+	if err != nil {
+		klog.Fatalf("could not get default route interface index: %v", err)
+	}
+	return iface.Name, nil
 }

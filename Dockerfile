@@ -9,6 +9,6 @@ RUN go build -v -o /go-pmtud cmd/go-pmtud/main.go
 FROM ubuntu
 LABEL source_repository="https://github.com/sapcc/go-pmtud"
 RUN apt-get update && apt-get install -y \
-        iptables \
+    iptables iproute2 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /go-pmtud /go-pmtud
