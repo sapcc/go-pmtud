@@ -95,6 +95,15 @@ func Run() error {
 		}
 	}
 
+	//ensure counters are reported
+	metrics.RecvPackets.WithLabelValues(nodeName).Add(0)
+	metrics.Error.WithLabelValues(nodeName).Add(0)
+
+	for _, d := range peerList {
+		metrics.SentError.WithLabelValues(nodeName, d).Add(0)
+		metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Add(0)
+	}
+
 	nflogger := log.New(os.Stdout, "nflog:", log.Ldate|log.Ltime|log.Lshortfile)
 	config := nflog.Config{
 		Group:       nfGroup,
