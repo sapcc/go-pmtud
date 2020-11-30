@@ -53,12 +53,13 @@ docker build -t go-pmtud .
 
 Following options are available:
 
-1. peers - list of peers to re-send ICMP packets to.
+1. peers - resend ICMP frag-needed packets to this peer list.
 2. iface - interface that listens for ICMP packets and resends them to other peers.
 3. nodename - node hostname, used for metric label.
 4. nflog-group - NFLOG group, set to 33 in our case.
 5. metrics-port - Port for Prometheus metrics (30040 by default).
 6. ttl - TTL of replicated ICMP packets.
+7. ignore-networks - Do not resend ICMP frag-needed packets originated from specified networks
 
 If `iface` is empty, it finds out the outgoing interface based on the default route. 
 
@@ -79,7 +80,7 @@ images:
 
 iptables:
   nflogGroup: 33
-  ignoreSourceNetwork: 192.168.100.0/24
+  ignoreSourceNetworks: 192.168.100.0/24
 
 pmtud:
   ttl: 10
@@ -92,25 +93,10 @@ pmtud:
 
 There is an iptables rule on each node that redirects ICMP Destination Unreachable` packets to NFlog group nr. 33:
 
-`iptables -t raw -D PREROUTING -i <interface> ! -s 192.168.100.0/24 -p icmp -m icmp --icmp-type 3/4 --j NFLOG --nflog-group 33`
+`iptables -t raw -D PREROUTING -i <interface> -p icmp -m icmp --icmp-type 3/4 --j NFLOG --nflog-group 33`
 
-Important: we ignore packets from summarized source network of all nodes in the local cluster (e.g. `! -s 192.168.100.0/24`) to avoid re-sending loops.
-
+Important: we need ignore packets from summarized source networks of all nodes in the local cluster to avoid re-sending loops. Use `ignore-networks` option for this. 
 This means a node will not re-send already retransmitted ICMP messages. It will only resend messages that are usually originated by routers on the path. 
-
-During the container startup an initContainer checks if the following rule already exists on the node. If not, rule is created.
-
-On pod termination a preStop hook removes the same rule.
-
-```
-        lifecycle:
-          preStop:
-            exec:
-              command:
-              - /bin/sh
-              - -c
-              - iptables -t raw -D PREROUTING -i eth0 ! -s 192.168.100.0/24 -p icmp -m icmp --icmp-type 3/4 --j NFLOG --nflog-group 33
-```
 
 ## License
 This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details
