@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,6 +25,7 @@ import (
 )
 
 var peers []string
+var ignoreNets []string
 var iface string
 var nodeName string
 var metricsPort int
@@ -35,7 +37,8 @@ var nfGroup uint16
 func init() {
 	flag.StringVar(&iface, "iface", "", "Network interface to work on")
 	flag.StringVar(&nodeName, "nodename", "", "Node hostname")
-	flag.StringSliceVar(&peers, "peers", nil, "Resend ICMP packets to this peer list (comma separated)")
+	flag.StringSliceVar(&peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
+	flag.StringSliceVar(&ignoreNets, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma separated)")
 	flag.IntVar(&metricsPort, "metrics-port", 30040, "Port for Prometheus metrics")
 	flag.Uint16Var(&nfGroup, "nflog-group", 33, "NFLOG group")
 	flag.IntVar(&ttl, "ttl", 1, "TTL for resent packets")
@@ -95,6 +98,13 @@ func Run() error {
 		}
 	}
 
+	// Print ignored source networks
+	if len(ignoreNets) > 0 {
+		klog.Infof("Ignoring ICMP frag-needed packets from networks: %s", strings.Join(ignoreNets, ", "))
+	} else {
+		klog.Fatalf("Warning! ignore-networks is not specified - possibility to create a message loop!")
+	}
+
 	//ensure counters are reported
 	metrics.RecvPackets.WithLabelValues(nodeName).Add(0)
 	metrics.Error.WithLabelValues(nodeName).Add(0)
@@ -123,51 +133,82 @@ func Run() error {
 	fn := func(attrs nflog.Attribute) int {
 		metrics.RecvPackets.WithLabelValues(nodeName).Inc()
 		start := time.Now()
+
+		sendPackets := false
+
 		b := append(make([]byte, 0, len(*attrs.Payload)), *attrs.Payload...)
 
-		packet := b[20:]
-
-		c, err := net.ListenPacket("ip4:icmp", myIP)
+		rcvHeader, err := ipv4.ParseHeader(b)
 		if err != nil {
 			metrics.Error.WithLabelValues(nodeName).Inc()
-			klog.Errorf("Unable to create connection: %v", err)
+			klog.Errorf("Unable to read source IP address: %v", err)
 		}
-		defer c.Close()
+		sourceIP := rcvHeader.Src
 
-		p, err := ipv4.NewRawConn(c)
-		if err != nil {
-			metrics.Error.WithLabelValues(nodeName).Inc()
-			klog.Errorf("Unable to open new raw connection: %v", err)
-		}
+		klog.Infof("Received ICMP frag-needed from %s", sourceIP)
 
-		for _, d := range peerList {
-
-			dstIP := net.ParseIP(d)
-			klog.Infof("Resending ICMP message to %s", dstIP)
-
-			h := &ipv4.Header{
-				Version:  ipv4.Version,
-				Len:      ipv4.HeaderLen,
-				TotalLen: ipv4.HeaderLen + len(packet),
-				ID:       12345,
-				Protocol: 1,
-				TTL:      ttl,
-				Dst:      dstIP.To4(),
+		if len(ignoreNets) > 0 {
+			for _, n := range ignoreNets {
+				_, network, err := net.ParseCIDR(n)
+				if err != nil {
+					metrics.Error.WithLabelValues(nodeName).Inc()
+					klog.Errorf("Unable to convert network: %v", err)
+				}
+				if network.Contains(sourceIP) {
+					klog.Infof("ICMP frag-needed received from %s which is part of ignore-network %s, ignoring.", sourceIP, network)
+					return 0
+				} else {
+					klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network %s, resending packet.", sourceIP, network)
+					sendPackets = true
+				}
 			}
+		}
 
-			err = p.WriteTo(h, packet, nil)
+		if sendPackets == true {
+			packet := b[20:]
+
+			c, err := net.ListenPacket("ip4:icmp", myIP)
 			if err != nil {
-				metrics.SentError.WithLabelValues(nodeName, d).Inc()
-				klog.Warningf("unable to send bytes: %v %d", err)
-				break
+				metrics.Error.WithLabelValues(nodeName).Inc()
+				klog.Errorf("Unable to create connection: %v", err)
+			}
+			defer c.Close()
+
+			p, err := ipv4.NewRawConn(c)
+			if err != nil {
+				metrics.Error.WithLabelValues(nodeName).Inc()
+				klog.Errorf("Unable to open new raw connection: %v", err)
 			}
 
-			metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Inc()
-			metrics.SentPackets.WithLabelValues(nodeName).Inc()
-		}
+			for _, d := range peerList {
 
-		duration := time.Since(start)
-		metrics.CallbackDuration.WithLabelValues(nodeName).Observe(duration.Seconds())
+				dstIP := net.ParseIP(d)
+				klog.Infof("Resending ICMP frag-needed packet to %s", dstIP)
+
+				h := &ipv4.Header{
+					Version:  ipv4.Version,
+					Len:      ipv4.HeaderLen,
+					TotalLen: ipv4.HeaderLen + len(packet),
+					ID:       12345,
+					Protocol: 1,
+					TTL:      ttl,
+					Dst:      dstIP.To4(),
+				}
+
+				err = p.WriteTo(h, packet, nil)
+				if err != nil {
+					metrics.SentError.WithLabelValues(nodeName, d).Inc()
+					klog.Warningf("unable to send bytes: %v %d", err)
+					break
+				}
+
+				metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Inc()
+				metrics.SentPackets.WithLabelValues(nodeName).Inc()
+			}
+
+			duration := time.Since(start)
+			metrics.CallbackDuration.WithLabelValues(nodeName).Observe(duration.Seconds())
+		}
 		return 0
 	}
 

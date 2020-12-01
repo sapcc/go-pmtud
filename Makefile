@@ -9,5 +9,5 @@ all: build push
 build:
 	docker build -t $(IMAGE):$(VERSION) .
 
-push:
+push: build
 	docker push ${IMAGE}:${VERSION}
