@@ -102,7 +102,7 @@ func Run() error {
 	if len(ignoreNets) > 0 {
 		klog.Infof("Ignoring ICMP frag-needed packets from networks: %s", strings.Join(ignoreNets, ", "))
 	} else {
-		klog.Warningf("Warning! ignore-networks is not specified - possibility to create a message loop!")
+		klog.Fatalf("Warning! ignore-networks is not specified - possibility to create a message loop!")
 	}
 
 	//ensure counters are reported
