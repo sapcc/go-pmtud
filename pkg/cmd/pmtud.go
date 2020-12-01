@@ -155,16 +155,16 @@ func Run() error {
 					klog.Errorf("Unable to convert network: %v", err)
 				}
 				if network.Contains(sourceIP) {
-					klog.Infof("ICMP frag-needed received from %s which is part of ignore-network %s, ignoring.", sourceIP, network)
-					return 0
+					return 0 // do nothing because received from ignore-network
 				} else {
-					klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network %s, resending packet.", sourceIP, network)
 					sendPackets = true
 				}
 			}
 		}
 
 		if sendPackets == true {
+
+			klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network, resending packet.", sourceIP)
 			packet := b[20:]
 
 			c, err := net.ListenPacket("ip4:icmp", myIP)
