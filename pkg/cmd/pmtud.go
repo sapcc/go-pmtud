@@ -72,12 +72,15 @@ func Run() error {
 
 	var nodeIface string
 	if len(ifaceNames) == 0 {
+		metrics.Error.WithLabelValues(nodeName).Inc()
 		return fmt.Errorf("no interface names given")
 	} else {
 		// find outgoing interface of default gateway if interface was not specified
 		var err error
 		nodeIface, err = getReplIface()
 		if err != nil {
+			metrics.Error.WithLabelValues(nodeName).Inc()
+			klog.Errorf("getReplIface error: %v", err)
 			return err
 		}
 	}
@@ -87,16 +90,22 @@ func Run() error {
 	// Serve metrics on same interface
 	metricsIface, err := getIface()
 	if err != nil {
+		metrics.Error.WithLabelValues(nodeName).Inc()
+		klog.Errorf("getIface error: %v", err)
 		return err
 	}
 	metricsIp, err := getIfaceIP(metricsIface)
 	if err != nil {
+		metrics.Error.WithLabelValues(nodeName).Inc()
+		klog.Errorf("getIfaceIP error: %v", err)
 		return err
 	}
 	go metrics.ServeMetrics(net.ParseIP(metricsIp), metricsPort)
 
 	myMac, err := net.InterfaceByName(nodeIface)
 	if err != nil {
+		metrics.Error.WithLabelValues(nodeName).Inc()
+		klog.Errorf("InterfaceByName error: %v", err)
 		return err
 	}
 	peerList := peers
@@ -137,7 +146,7 @@ func Run() error {
 	nf, err := nflog.Open(&config)
 	if err != nil {
 		metrics.Error.WithLabelValues(nodeName).Inc()
-		klog.Fatalf("nflog error: %v", err)
+		klog.Errorf("nflog error: %v", err)
 		return err
 	}
 	defer nf.Close()
@@ -152,6 +161,7 @@ func Run() error {
 		if err != nil {
 			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("Unable to read source IP address: %v", err)
+			return 0
 		}
 		sourceIP := rcvHeader.Src
 
@@ -159,17 +169,20 @@ func Run() error {
 
 		interFace, err := net.InterfaceByName(nodeIface)
 		if err != nil {
+			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("unable to get interface with name: %v, %v", nodeIface, err)
 			return 0
 		}
 		conn, err := raw.ListenPacket(interFace, 0x0800, nil)
 		if err != nil {
+			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("unable to create listen socket for interface: %v", err)
 			return 0
 		}
 		for _, d := range peerList {
 			hwAddr, err := net.ParseMAC(d)
 			if err != nil {
+				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error parsing peer: %v, %v", d, err)
 				return 0
 			}
@@ -181,6 +194,7 @@ func Run() error {
 			}
 			bin, err := frame.MarshalBinary()
 			if err != nil {
+				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error marshalling frame: %v", err)
 				return 0
 			}
@@ -188,9 +202,12 @@ func Run() error {
 				HardwareAddr: ethernet.Broadcast,
 			}
 			if _, err := conn.WriteTo(bin, addr); err != nil {
+				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error writing packet: %v", err)
 				return 0
 			}
+			metrics.SentPackets.WithLabelValues(nodeName).Inc()
+			metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Inc()
 		}
 
 		duration := time.Since(start)
@@ -201,7 +218,7 @@ func Run() error {
 	err = nf.Register(ctx, fn)
 	if err != nil {
 		metrics.Error.WithLabelValues(nodeName).Inc()
-		klog.Fatalf("nflog register error: %v", err)
+		klog.Errorf("nflog register error: %v", err)
 		return err
 	}
 
