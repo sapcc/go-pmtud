@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -262,12 +263,13 @@ func getIfaceIP(intf string) (string, error) {
 
 func getReplIface() (string, error) {
 	interFaces, err := net.Interfaces()
+	klog.Infof("discovered interfaces: %v", interFaces)
 	if err != nil {
 		return "", err
 	}
 	for _, name := range ifaceNames {
 		for _, in := range interFaces {
-			if in.Name == name {
+			if strings.Compare(in.Name, name) == 0 {
 				return name, nil
 			}
 		}
