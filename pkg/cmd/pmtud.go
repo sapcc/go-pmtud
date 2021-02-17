@@ -22,6 +22,9 @@ import (
 	flag "github.com/spf13/pflag"
 	"golang.org/x/net/ipv4"
 	"k8s.io/klog"
+
+	"github.com/mdlayher/ethernet"
+	"github.com/mdlayher/raw"
 )
 
 var peers []string
@@ -165,45 +168,43 @@ func Run() error {
 		if sendPackets == true {
 
 			klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network, resending packet.", sourceIP)
-			packet := b[20:]
 
-			c, err := net.ListenPacket("ip4:icmp", myIP)
+			interFace, err := net.InterfaceByName(iface)
 			if err != nil {
-				metrics.Error.WithLabelValues(nodeName).Inc()
-				klog.Errorf("Unable to create connection: %v", err)
+				klog.Errorf("unable to get interface with name: %v, %v", iface, err)
+				return 0
 			}
-			defer c.Close()
-
-			p, err := ipv4.NewRawConn(c)
+			conn, err := raw.ListenPacket(interFace, 0x0800, nil)
 			if err != nil {
-				metrics.Error.WithLabelValues(nodeName).Inc()
-				klog.Errorf("Unable to open new raw connection: %v", err)
+				klog.Errorf("unable to create listen socket for interface: %v", err)
+				return 0
 			}
 
 			for _, d := range peerList {
 
-				dstIP := net.ParseIP(d)
-				klog.Infof("Resending ICMP frag-needed packet to %s", dstIP)
-
-				h := &ipv4.Header{
-					Version:  ipv4.Version,
-					Len:      ipv4.HeaderLen,
-					TotalLen: ipv4.HeaderLen + len(packet),
-					ID:       12345,
-					Protocol: 1,
-					TTL:      ttl,
-					Dst:      dstIP.To4(),
-				}
-
-				err = p.WriteTo(h, packet, nil)
+				hwAddr, err := net.ParseMAC(d)
 				if err != nil {
-					metrics.SentError.WithLabelValues(nodeName, d).Inc()
-					klog.Warningf("unable to send bytes: %v %d", err)
-					break
+					klog.Errorf("error parsing peer: %v, %v", d, err)
+					return 0
 				}
-
-				metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Inc()
-				metrics.SentPackets.WithLabelValues(nodeName).Inc()
+				frame := ethernet.Frame{
+					Source: interFace.HardwareAddr,
+					Destination: hwAddr,
+					EtherType: 0x0800,
+					Payload: b,
+				}
+				bin, err := frame.MarshalBinary()
+				if err != nil {
+					klog.Errorf("error marshalling frame: %v", err)
+					return 0
+				}
+				addr := &raw.Addr{
+					HardwareAddr: ethernet.Broadcast,
+				}
+				if _, err := conn.WriteTo(bin, addr); err != nil {
+					klog.Errorf("error writing packet: %v", err)
+					return 0
+				}
 			}
 
 			duration := time.Since(start)

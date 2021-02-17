@@ -5,6 +5,8 @@ go 1.13
 require (
 	github.com/florianl/go-nflog v1.1.1-0.20191206091942-73c87d42a33a
 	github.com/jsimonetti/rtnetlink v0.0.0-20191211171148-87f74a6e057a // indirect
+	github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7
+	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065
 	github.com/prometheus/client_golang v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.1.0
