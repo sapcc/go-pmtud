@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,8 +28,8 @@ import (
 )
 
 var peers []string
-var ignoreNets []string
-var iface string
+//var ignoreNets []string
+var ifaceNames []string
 var nodeName string
 var metricsPort int
 var ttl int
@@ -38,10 +38,10 @@ var nfGroup uint16
 // var hostIP net.IP
 
 func init() {
-	flag.StringVar(&iface, "iface", "", "Network interface to work on")
+	flag.StringSliceVar(&ifaceNames, "iface-names", nil, "Network interface names to work on")
 	flag.StringVar(&nodeName, "nodename", "", "Node hostname")
 	flag.StringSliceVar(&peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
-	flag.StringSliceVar(&ignoreNets, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma separated)")
+	//flag.StringSliceVar(&ignoreNets, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma separated)")
 	flag.IntVar(&metricsPort, "metrics-port", 30040, "Port for Prometheus metrics")
 	flag.Uint16Var(&nfGroup, "nflog-group", 33, "NFLOG group")
 	flag.IntVar(&ttl, "ttl", 1, "TTL for resent packets")
@@ -71,42 +71,51 @@ func Run() error {
 	}()
 
 	var nodeIface string
-	if iface != "" {
-		nodeIface = iface
+	if len(ifaceNames) == 0 {
+		return fmt.Errorf("no interface names given")
 	} else {
 		// find outgoing interface of default gateway if interface was not specified
 		var err error
-		nodeIface, err = getIface()
+		nodeIface, err = getReplIface()
 		if err != nil {
 			return err
 		}
 	}
 	// get own IP
 	klog.Infof("Working with iface %s", nodeIface)
-	myIP, err := getIfaceIP(nodeIface)
-	if err != nil {
-		metrics.Error.WithLabelValues(nodeName).Inc()
-		klog.Fatalf("Unable to get own IP address: %v", err)
-	}
 
 	// Serve metrics on same interface
-	go metrics.ServeMetrics(net.ParseIP(myIP), metricsPort)
+	metricsIface, err := getIface()
+	if err != nil {
+		return err
+	}
+	metricsIp, err := getIfaceIP(metricsIface)
+	if err != nil {
+		return err
+	}
+	go metrics.ServeMetrics(net.ParseIP(metricsIp), metricsPort)
 
+	myMac, err := net.InterfaceByName(nodeIface)
+	if err != nil {
+		return err
+	}
 	peerList := peers
 	// Remove own IP address from peer list
 	for i, p := range peers {
-		if p == myIP {
+		if p == myMac.HardwareAddr.String() {
 			klog.Infof("Removing own IP %s from the peer list", p)
 			peerList = append(peerList[:i], peerList[i+1:]...)
 		}
 	}
 
 	// Print ignored source networks
-	if len(ignoreNets) > 0 {
-		klog.Infof("Ignoring ICMP frag-needed packets from networks: %s", strings.Join(ignoreNets, ", "))
-	} else {
-		klog.Fatalf("Warning! ignore-networks is not specified - possibility to create a message loop!")
-	}
+	// if len(ignoreNets) > 0 {
+	//	klog.Infof("Ignoring ICMP frag-needed packets from networks: %s", strings.Join(ignoreNets, ", "))
+	//} else {
+	//	err := fmt.Errorf("ignore-networks is not specified - possibility to create a message loop")
+	//	klog.Error(err)
+	//	return err
+	//}
 
 	//ensure counters are reported
 	metrics.RecvPackets.WithLabelValues(nodeName).Add(0)
@@ -137,8 +146,6 @@ func Run() error {
 		metrics.RecvPackets.WithLabelValues(nodeName).Inc()
 		start := time.Now()
 
-		sendPackets := false
-
 		b := append(make([]byte, 0, len(*attrs.Payload)), *attrs.Payload...)
 
 		rcvHeader, err := ipv4.ParseHeader(b)
@@ -148,68 +155,46 @@ func Run() error {
 		}
 		sourceIP := rcvHeader.Src
 
-		klog.Infof("Received ICMP frag-needed from %s", sourceIP)
+		klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network, resending packet.", sourceIP)
 
-		if len(ignoreNets) > 0 {
-			for _, n := range ignoreNets {
-				_, network, err := net.ParseCIDR(n)
-				if err != nil {
-					metrics.Error.WithLabelValues(nodeName).Inc()
-					klog.Errorf("Unable to convert network: %v", err)
-				}
-				if network.Contains(sourceIP) {
-					return 0 // do nothing because received from ignore-network
-				} else {
-					sendPackets = true
-				}
+		interFace, err := net.InterfaceByName(nodeIface)
+		if err != nil {
+			klog.Errorf("unable to get interface with name: %v, %v", nodeIface, err)
+			return 0
+		}
+		conn, err := raw.ListenPacket(interFace, 0x0800, nil)
+		if err != nil {
+			klog.Errorf("unable to create listen socket for interface: %v", err)
+			return 0
+		}
+		for _, d := range peerList {
+			hwAddr, err := net.ParseMAC(d)
+			if err != nil {
+				klog.Errorf("error parsing peer: %v, %v", d, err)
+				return 0
+			}
+			frame := ethernet.Frame{
+				Source: interFace.HardwareAddr,
+				Destination: hwAddr,
+				EtherType: 0x0800,
+				Payload: b,
+			}
+			bin, err := frame.MarshalBinary()
+			if err != nil {
+				klog.Errorf("error marshalling frame: %v", err)
+				return 0
+			}
+			addr := &raw.Addr{
+				HardwareAddr: ethernet.Broadcast,
+			}
+			if _, err := conn.WriteTo(bin, addr); err != nil {
+				klog.Errorf("error writing packet: %v", err)
+				return 0
 			}
 		}
 
-		if sendPackets == true {
-
-			klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network, resending packet.", sourceIP)
-
-			interFace, err := net.InterfaceByName(iface)
-			if err != nil {
-				klog.Errorf("unable to get interface with name: %v, %v", iface, err)
-				return 0
-			}
-			conn, err := raw.ListenPacket(interFace, 0x0800, nil)
-			if err != nil {
-				klog.Errorf("unable to create listen socket for interface: %v", err)
-				return 0
-			}
-
-			for _, d := range peerList {
-
-				hwAddr, err := net.ParseMAC(d)
-				if err != nil {
-					klog.Errorf("error parsing peer: %v, %v", d, err)
-					return 0
-				}
-				frame := ethernet.Frame{
-					Source: interFace.HardwareAddr,
-					Destination: hwAddr,
-					EtherType: 0x0800,
-					Payload: b,
-				}
-				bin, err := frame.MarshalBinary()
-				if err != nil {
-					klog.Errorf("error marshalling frame: %v", err)
-					return 0
-				}
-				addr := &raw.Addr{
-					HardwareAddr: ethernet.Broadcast,
-				}
-				if _, err := conn.WriteTo(bin, addr); err != nil {
-					klog.Errorf("error writing packet: %v", err)
-					return 0
-				}
-			}
-
-			duration := time.Since(start)
-			metrics.CallbackDuration.WithLabelValues(nodeName).Observe(duration.Seconds())
-		}
+		duration := time.Since(start)
+		metrics.CallbackDuration.WithLabelValues(nodeName).Observe(duration.Seconds())
 		return 0
 	}
 
@@ -258,18 +243,37 @@ func getIfaceIP(intf string) (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
+func getReplIface() (string, error) {
+	interFaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, name := range ifaceNames {
+		for _, in := range interFaces {
+			if in.Name == name {
+				return name, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no interface found with names: %v", ifaceNames)
+}
+
 // getIface gets an interface of the default route
 func getIface() (string, error) {
 	// Internet is where 8.8.8.8 lives
 	var defaultRoute, _ , _ = net.ParseCIDR("8.8.8.8/32")
 	route, err := netlink.RouteGet(defaultRoute)
 	if err != nil {
-		klog.Fatalf("could not get default route: %v", err)
+		err2 := fmt.Errorf("could not get default route: %v", err)
+		klog.Error(err2)
+		return "", err2
 	}
 	ifindex := route[0].LinkIndex
 	iface, err := net.InterfaceByIndex(ifindex)
 	if err != nil {
-		klog.Fatalf("could not get default route interface index: %v", err)
+		err2 := fmt.Errorf("coudl not get default route interface index: %v", err)
+		klog.Error(err2)
+		return "", err2
 	}
 	return iface.Name, nil
 }
