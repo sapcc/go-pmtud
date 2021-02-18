@@ -112,8 +112,8 @@ func Run() error {
 	peerList := peers
 	// Remove own IP address from peer list
 	for i, p := range peers {
-		if p == myMac.HardwareAddr.String() {
-			klog.Infof("Removing own IP %s from the peer list", p)
+		if strings.Compare(p,  myMac.HardwareAddr.String()) == 0 {
+			klog.Infof("Removing own MAC %s from the peer list", p)
 			peerList = append(peerList[:i], peerList[i+1:]...)
 		}
 	}
@@ -166,7 +166,7 @@ func Run() error {
 		}
 		sourceIP := rcvHeader.Src
 
-		klog.Infof("ICMP frag-needed received from %s which is not part of ignore-network, resending packet.", sourceIP)
+		klog.Infof("ICMP frag-needed received from %s, resending packet.", sourceIP)
 
 		interFace, err := net.InterfaceByName(nodeIface)
 		if err != nil {
@@ -200,7 +200,7 @@ func Run() error {
 				return 0
 			}
 			addr := &raw.Addr{
-				HardwareAddr: ethernet.Broadcast,
+				HardwareAddr: hwAddr,
 			}
 			if _, err := conn.WriteTo(bin, addr); err != nil {
 				metrics.Error.WithLabelValues(nodeName).Inc()
