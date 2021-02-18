@@ -269,6 +269,9 @@ func getReplIface() (string, error) {
 	}
 	for _, name := range ifaceNames {
 		for _, in := range interFaces {
+			if in.MTU != 1500 {
+				continue
+			}
 			if strings.Compare(in.Name, name) == 0 {
 				return name, nil
 			}
