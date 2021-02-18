@@ -263,7 +263,7 @@ func getIfaceIP(intf string) (string, error) {
 
 func getReplIface() (string, error) {
 	interFaces, err := net.Interfaces()
-	klog.Infof("discovered interfaces: %v", interFaces)
+	//klog.Infof("discovered interfaces: %v", interFaces)
 	if err != nil {
 		return "", err
 	}
