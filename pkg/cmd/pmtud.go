@@ -142,8 +142,9 @@ func Run() error {
 		Copymode:    nflog.NfUlnlCopyPacket,
 		ReadTimeout: 100 * time.Millisecond,
 		Logger:      nflogger,
+		Bufsize:     102400,
 	}
-
+	klog.Infof("Operating with buffersize: %v", config.Bufsize)
 	nf, err := nflog.Open(&config)
 	if err != nil {
 		metrics.Error.WithLabelValues(nodeName).Inc()
