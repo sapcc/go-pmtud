@@ -19,7 +19,7 @@ import (
 
 	goflag "flag"
 
-	"github.com/florianl/go-nflog"
+	nflog "github.com/florianl/go-nflog/v2"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/net/ipv4"
 	"k8s.io/klog"
@@ -139,7 +139,7 @@ func Run() error {
 	nflogger := log.New(os.Stdout, "nflog:", log.Ldate|log.Ltime|log.Lshortfile)
 	config := nflog.Config{
 		Group:       nfGroup,
-		Copymode:    nflog.NfUlnlCopyPacket,
+		Copymode:    nflog.CopyPacket,
 		ReadTimeout: 100 * time.Millisecond,
 		Logger:      nflogger,
 		Bufsize:     102400,
@@ -163,7 +163,8 @@ func Run() error {
 		if err != nil {
 			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("Unable to read source IP address: %v", err)
-			return 0
+			cancel()
+			return 1
 		}
 		sourceIP := rcvHeader.Src
 
@@ -173,20 +174,23 @@ func Run() error {
 		if err != nil {
 			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("unable to get interface with name: %v, %v", nodeIface, err)
-			return 0
+			cancel()
+			return 1
 		}
 		conn, err := raw.ListenPacket(interFace, 0x0800, nil)
 		if err != nil {
 			metrics.Error.WithLabelValues(nodeName).Inc()
 			klog.Errorf("unable to create listen socket for interface: %v", err)
-			return 0
+			cancel()
+			return 1
 		}
 		for _, d := range peerList {
 			hwAddr, err := net.ParseMAC(d)
 			if err != nil {
 				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error parsing peer: %v, %v", d, err)
-				return 0
+				cancel()
+				return 1
 			}
 			frame := ethernet.Frame{
 				Source: interFace.HardwareAddr,
@@ -198,7 +202,8 @@ func Run() error {
 			if err != nil {
 				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error marshalling frame: %v", err)
-				return 0
+				cancel()
+				return 1
 			}
 			addr := &raw.Addr{
 				HardwareAddr: hwAddr,
@@ -206,7 +211,8 @@ func Run() error {
 			if _, err := conn.WriteTo(bin, addr); err != nil {
 				metrics.Error.WithLabelValues(nodeName).Inc()
 				klog.Errorf("error writing packet: %v", err)
-				return 0
+				cancel()
+				return 1
 			}
 			metrics.SentPackets.WithLabelValues(nodeName).Inc()
 			metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Inc()
@@ -217,7 +223,7 @@ func Run() error {
 		return 0
 	}
 
-	err = nf.Register(ctx, fn)
+	errChan, err := nf.Register(ctx, fn)
 	if err != nil {
 		metrics.Error.WithLabelValues(nodeName).Inc()
 		klog.Errorf("nflog register error: %v", err)
@@ -225,6 +231,9 @@ func Run() error {
 	}
 
 	select {
+	case err := <-errChan:
+		klog.Error(err)
+		cancel()
 	case <-sigs:
 		klog.Warning("signal received quiting")
 		cancel()
