@@ -142,7 +142,7 @@ func Run() error {
 		Copymode:    nflog.CopyPacket,
 		ReadTimeout: 100 * time.Millisecond,
 		Logger:      nflogger,
-		Bufsize:     102400,
+		Bufsize:     2*1024*1024,
 	}
 	klog.Infof("Operating with buffersize: %v", config.Bufsize)
 	nf, err := nflog.Open(&config)
