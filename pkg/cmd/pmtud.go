@@ -28,6 +28,9 @@ import (
 	"github.com/mdlayher/raw"
 )
 
+const nf_bufsize = 2*1024*1024
+const read_bufsize = 2*1024*1024
+
 var peers []string
 //var ignoreNets []string
 var ifaceNames []string
@@ -135,14 +138,13 @@ func Run() error {
 		metrics.SentError.WithLabelValues(nodeName, d).Add(0)
 		metrics.SentPacketsPeer.WithLabelValues(nodeName, d).Add(0)
 	}
-
 	nflogger := log.New(os.Stdout, "nflog:", log.Ldate|log.Ltime|log.Lshortfile)
 	config := nflog.Config{
 		Group:       nfGroup,
 		Copymode:    nflog.CopyPacket,
 		ReadTimeout: 100 * time.Millisecond,
 		Logger:      nflogger,
-		Bufsize:     2*1024*1024,
+		Bufsize:     nf_bufsize,
 	}
 	klog.Infof("Operating with buffersize: %v", config.Bufsize)
 	nf, err := nflog.Open(&config)
@@ -152,6 +154,12 @@ func Run() error {
 		return err
 	}
 	defer nf.Close()
+	err = nf.Con.SetReadBuffer(read_bufsize)
+	if err != nil {
+		metrics.Error.WithLabelValues(nodeName).Inc()
+		klog.Errorf("error setting read buffer: %v", err)
+		return err
+	}
 
 	fn := func(attrs nflog.Attribute) int {
 		metrics.RecvPackets.WithLabelValues(nodeName).Inc()
