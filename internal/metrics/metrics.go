@@ -14,6 +14,11 @@ var Error = prometheus.NewCounterVec(prometheus.CounterOpts{
     Help: "Number of general errors in go-pmtud",
 }, []string{"node"})
 
+var ArpResolveError = prometheus.NewCounterVec(prometheus.CounterOpts{
+    Name: "go_pmtud_peer_arp_resolve_error",
+    Help: "Number of ARP resolution errors per peer",
+}, []string{"node", "peer"})
+
 var SentPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
     Name: "go_pmtud_sent_packets_total",
     Help: "Number of sent ICMP packets",

@@ -3,8 +3,8 @@ module github.com/sapcc/go-pmtud
 go 1.13
 
 replace github.com/florianl/go-nflog/v2 v2.0.0 => github.com/sapcc/go-nflog/v2 v2.0.1
-replace github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc => github.com/sapcc/arp v0.0.0-20210323090929-4fa8e70001f0
 
+replace github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc => github.com/sapcc/arp v0.0.0-20210323090929-4fa8e70001f0
 
 require (
 	github.com/florianl/go-nflog/v2 v2.0.0
@@ -19,6 +19,5 @@ require (
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	k8s.io/api v0.20.2
 	k8s.io/client-go v0.20.2
-	k8s.io/klog v1.0.0
 	sigs.k8s.io/controller-runtime v0.8.3
 )

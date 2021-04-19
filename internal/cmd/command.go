@@ -49,7 +49,7 @@ func init() {
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
 	_ = viper.BindPFlags(rootCmd.PersistentFlags())
 
-	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
+	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
 	cfg.PeerList = make(map[string]conf.PeerEntry)
 }
 

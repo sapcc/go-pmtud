@@ -6,6 +6,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/sapcc/go-pmtud/internal/arp"
 	"github.com/sapcc/go-pmtud/internal/config"
+	"github.com/sapcc/go-pmtud/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -51,6 +52,11 @@ func (r *Reconciler) Reconcile (ctx context.Context, request reconcile.Request) 
 		Cfg: r.Cfg,
 	}
 	mac, err := res.Resolve(node.Status.Addresses[0].Address)
+	if err != nil {
+		err = fmt.Errorf("could not resolve mac address for node %s", request.Name)
+		metrics.ArpResolveError.WithLabelValues(r.Cfg.NodeName, request.Name).Inc()
+		return reconcile.Result{}, err
+	}
 	log.Info("found mac " + mac)
 	entry := config.PeerEntry{
 		LastUpdated: time.Now(),
