@@ -1,7 +1,7 @@
 package main
 
-import "github.com/sapcc/go-pmtud/pkg/cmd"
+import "github.com/sapcc/go-pmtud/internal/cmd"
 
 func main() {
-	cmd.Run()
+	cmd.Execute()
 }
