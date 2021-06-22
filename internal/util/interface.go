@@ -19,7 +19,7 @@ func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
 	}
 	for _, name := range cfg.InterfaceNames {
 		for _, interFace := range interFaces {
-			if interFace.MTU != 1500 {
+			if interFace.MTU != cfg.InterfaceMtu {
 				continue
 			}
 			if strings.Compare(interFace.Name, name) == 0 {

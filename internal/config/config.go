@@ -22,6 +22,7 @@ type Config struct {
 
 	ReplicationInterface string
 	DefaultInterface string
+	InterfaceMtu int
 	PeerMutex sync.Mutex
 	PeerList map[string]PeerEntry
 }
