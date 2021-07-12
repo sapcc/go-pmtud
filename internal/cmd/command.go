@@ -80,13 +80,13 @@ func runRootCmd (cmd *cobra.Command, args []string) error {
 	}
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
 	if err != nil {
-		log.Error(err, "error getting kube config")
-		return err
+		log.Error(err, "error getting kube config. Exiting.")
+		os.Exit(1)
 	}
 	mgr, err := manager.New(restConfig, managerOpts)
 	if err != nil {
-		log.Error(err, "error creating manager")
-		return err
+		log.Error(err, "error creating manager. Exiting.")
+		os.Exit(1)
 	}
 
 	// add node-controller
