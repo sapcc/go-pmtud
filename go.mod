@@ -13,7 +13,7 @@ require (
 	github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7
 	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065
 	github.com/prometheus/client_golang v1.7.1
-	github.com/spf13/cobra v1.1.3
+	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.7.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
