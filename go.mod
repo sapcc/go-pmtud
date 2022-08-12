@@ -10,7 +10,7 @@ require (
 	github.com/florianl/go-nflog/v2 v2.0.0
 	github.com/go-logr/logr v0.4.0
 	github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc
-	github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7
+	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/raw v0.1.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.5.0
