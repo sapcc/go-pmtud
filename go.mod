@@ -11,7 +11,7 @@ require (
 	github.com/go-logr/logr v0.3.0
 	github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc
 	github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7
-	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065
+	github.com/mdlayher/raw v0.1.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.7.0
