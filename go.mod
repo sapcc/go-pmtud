@@ -7,7 +7,7 @@ replace github.com/florianl/go-nflog/v2 v2.0.0 => github.com/sapcc/go-nflog/v2 v
 replace github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc => github.com/sapcc/arp v0.0.0-20210323090929-4fa8e70001f0
 
 require (
-	github.com/florianl/go-nflog/v2 v2.0.0
+	github.com/florianl/go-nflog/v2 v2.0.1
 	github.com/go-logr/logr v0.4.0
 	github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
