@@ -16,7 +16,7 @@ require (
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.7.0
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/net v0.0.0-20220811182439-13a9a731de15
+	golang.org/x/net v0.0.0-20220812174116-3211cb980234
 	k8s.io/api v0.20.2
 	k8s.io/client-go v0.20.2
 	sigs.k8s.io/controller-runtime v0.8.3
