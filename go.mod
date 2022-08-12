@@ -12,7 +12,7 @@ require (
 	github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/raw v0.1.0
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.13.0
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.7.0
 	github.com/vishvananda/netlink v1.1.0
