@@ -14,7 +14,7 @@ require (
 	github.com/mdlayher/raw v0.1.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/spf13/cobra v1.5.0
-	github.com/spf13/viper v1.7.0
+	github.com/spf13/viper v1.12.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20220811182439-13a9a731de15
 	k8s.io/api v0.20.2
