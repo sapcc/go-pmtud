@@ -8,7 +8,7 @@ replace github.com/mdlayher/arp v0.0.0-20191213142603-f72070a231fc => github.com
 
 require (
 	github.com/florianl/go-nflog/v2 v2.0.1
-	github.com/go-logr/logr v0.4.0
+	github.com/go-logr/logr v1.2.3
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/raw v0.1.0
