@@ -7,7 +7,7 @@ replace (
 	github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20210323090929-4fa8e70001f0
 	k8s.io/api => k8s.io/api v0.23.5
 	k8s.io/client-go => k8s.io/client-go v0.23.5
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220803164354-a70c9af30aea
 	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.11.2
 )
 
