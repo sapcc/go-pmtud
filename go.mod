@@ -8,7 +8,7 @@ replace (
 	k8s.io/api => k8s.io/api v0.23.5
 	k8s.io/client-go => k8s.io/client-go v0.23.5
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
-	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.11.2
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.12.3
 )
 
 require (
@@ -22,9 +22,9 @@ require (
 	github.com/spf13/viper v1.12.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20220812174116-3211cb980234
-	k8s.io/api v0.23.5
-	k8s.io/client-go v0.23.5
-	sigs.k8s.io/controller-runtime v0.11.2
+	k8s.io/api v0.24.2
+	k8s.io/client-go v0.24.2
+	sigs.k8s.io/controller-runtime v0.12.3
 )
 
 require (
@@ -85,9 +85,9 @@ require (
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+	k8s.io/apiextensions-apiserver v0.24.2 // indirect
 	k8s.io/apimachinery v0.24.3 // indirect
-	k8s.io/component-base v0.23.5 // indirect
+	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.23.5 // indirect
 	k8s.io/utils v0.0.0-20220812165043-ad590609e2e5 // indirect
