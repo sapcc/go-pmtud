@@ -1,4 +1,4 @@
-FROM golang:1.16.2 AS builder
+FROM golang:1.18.5 AS builder
 
 WORKDIR /go/src/github.com/sapcc/go-pmtud
 ADD go.mod go.sum ./

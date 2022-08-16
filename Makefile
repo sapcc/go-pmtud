@@ -11,3 +11,6 @@ build:
 
 push: build
 	docker push ${IMAGE}:${VERSION}
+
+docker-push-mac:
+	docker buildx build  --platform linux/amd64 . -t ${IMAGE}:${VERSION} --push
