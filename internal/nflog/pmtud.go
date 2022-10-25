@@ -2,28 +2,33 @@ package nflog
 
 import (
 	"context"
+	golog "log"
+	"net"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/florianl/go-nflog/v2"
 	"github.com/go-logr/logr"
 	"github.com/mdlayher/ethernet"
 	"github.com/mdlayher/raw"
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
+	"github.com/sapcc/go-pmtud/internal/util"
 	"golang.org/x/net/ipv4"
-	golog "log"
-	"net"
-	"os"
-	"time"
 )
 
-const nf_bufsize = 2*1024*1024
-const read_bufsize = 2*1024*1024
+const nf_bufsize = 2 * 1024 * 1024
+const read_bufsize = 2 * 1024 * 1024
+
+var wg = sync.WaitGroup{}
 
 type Controller struct {
 	Log logr.Logger
 	Cfg *config.Config
 }
 
-func (nfc *Controller)Start(startCtx context.Context) error {
+func (nfc *Controller) Start(startCtx context.Context) error {
 	log := nfc.Log
 	cfg := nfc.Cfg
 	log.Info("Starting")
@@ -69,7 +74,6 @@ func (nfc *Controller)Start(startCtx context.Context) error {
 		}
 		cfg.PeerMutex.Unlock()
 
-		metrics.RecvPackets.WithLabelValues(cfg.NodeName).Inc()
 		start := time.Now()
 
 		b := append(make([]byte, 0, len(*attrs.Payload)), *attrs.Payload...)
@@ -83,19 +87,29 @@ func (nfc *Controller)Start(startCtx context.Context) error {
 		}
 		sourceIP := rcvHeader.Src
 
-		log.Info("ICMP frag-needed received, resending packet.", "source", sourceIP)
+		s, d, err := util.CalcSrcDst(b)
+		if err != nil {
+			log.Error(err, "Unable to calculate inner source and destination IP addresses")
+			return 1
+		}
+
+		metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()
+
+		log.Info("ICMP frag-needed received, resending packet.", "ICMP source", sourceIP,
+			"source IP", s,
+			"could not send to destination IP", d)
 
 		interFace, err := net.InterfaceByName(nodeIface)
 		if err != nil {
 			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err,"unable to get interface", "name", nodeIface)
+			log.Error(err, "unable to get interface", "name", nodeIface)
 			cancel()
 			return 1
 		}
 		conn, err := raw.ListenPacket(interFace, 0x0800, nil)
 		if err != nil {
 			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "unable to create listen socket","interface", interFace)
+			log.Error(err, "unable to create listen socket", "interface", interFace)
 			cancel()
 			return 1
 		}
@@ -108,10 +122,10 @@ func (nfc *Controller)Start(startCtx context.Context) error {
 				return 1
 			}
 			frame := ethernet.Frame{
-				Source: interFace.HardwareAddr,
+				Source:      interFace.HardwareAddr,
 				Destination: hwAddr,
-				EtherType: 0x0800,
-				Payload: b,
+				EtherType:   0x0800,
+				Payload:     b,
 			}
 			bin, err := frame.MarshalBinary()
 			if err != nil {
