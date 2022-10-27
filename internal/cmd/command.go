@@ -3,6 +3,8 @@ package cmd
 import (
 	goflag "flag"
 	"fmt"
+	"os"
+
 	conf "github.com/sapcc/go-pmtud/internal/config"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/nflog"
@@ -12,25 +14,26 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+
 	//"sigs.k8s.io/controller-runtime/pkg/log"
+	"strconv"
+
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"strconv"
 )
 
 var rootCmd = &cobra.Command{
-	Use: "pmtud",
-	Short: "",
-	Long: "",
-	RunE: runRootCmd,
+	Use:     "pmtud",
+	Short:   "",
+	Long:    "",
+	RunE:    runRootCmd,
 	PreRunE: preRunRootCmd,
 }
 var cfg = conf.Config{}
@@ -54,7 +57,7 @@ func init() {
 	cfg.PeerList = make(map[string]conf.PeerEntry)
 }
 
-func preRunRootCmd( cmd *cobra.Command, args []string) error {
+func preRunRootCmd(cmd *cobra.Command, args []string) error {
 	log := zap.New(func(o *zap.Options) {
 		o.Development = true
 	}).WithName("preRunRoot")
@@ -69,13 +72,13 @@ func preRunRootCmd( cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runRootCmd (cmd *cobra.Command, args []string) error {
+func runRootCmd(cmd *cobra.Command, args []string) error {
 	log := zap.New(func(o *zap.Options) {
 		o.Development = true
 	}).WithName("runRoot")
 	ctrl.SetLogger(log)
 	managerOpts := manager.Options{
-		MetricsBindAddress: ":" + strconv.Itoa(viper.GetInt("metrics_port")),
+		MetricsBindAddress:     ":" + strconv.Itoa(viper.GetInt("metrics_port")),
 		HealthProbeBindAddress: ":" + strconv.Itoa(cfg.HealthPort),
 	}
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
@@ -92,9 +95,9 @@ func runRootCmd (cmd *cobra.Command, args []string) error {
 	// add node-controller
 	c, err := controller.New("node-controller", mgr, controller.Options{
 		Reconciler: &node.Reconciler{
-			Log: mgr.GetLogger().WithName("node-controller"),
+			Log:    mgr.GetLogger().WithName("node-controller"),
 			Client: mgr.GetClient(),
-			Cfg: &cfg,
+			Cfg:    &cfg,
 		},
 	})
 	if err != nil {
