@@ -15,12 +15,12 @@ import (
 )
 
 type Reconciler struct {
-	Log logr.Logger
+	Log    logr.Logger
 	Client client.Client
-	Cfg *config.Config
+	Cfg    *config.Config
 }
 
-func (r *Reconciler) Reconcile (ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	log := r.Log.WithValues("node", request.Name)
 
 	// We do not consider our own node
@@ -31,7 +31,7 @@ func (r *Reconciler) Reconcile (ctx context.Context, request reconcile.Request) 
 	// We do not want to update every mac on every update
 	e, ok := r.Cfg.PeerList[request.Name]
 	if ok {
-		if time.Now().Before(e.LastUpdated.Add(1 * time.Minute)) {
+		if time.Now().Before(e.LastUpdated.Add(time.Duration(r.Cfg.ArpCacheTimeoutMinutes) * time.Minute)) {
 			return reconcile.Result{}, nil
 		}
 	}
@@ -60,7 +60,7 @@ func (r *Reconciler) Reconcile (ctx context.Context, request reconcile.Request) 
 	log.Info("found mac " + mac)
 	entry := config.PeerEntry{
 		LastUpdated: time.Now(),
-		Mac: mac,
+		Mac:         mac,
 	}
 	r.Cfg.PeerMutex.Lock()
 	r.Cfg.PeerList[request.Name] = entry

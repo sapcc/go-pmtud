@@ -71,7 +71,7 @@ func GetInterfaceIp(name string, log logr.Logger) (string, error) {
 	}
 	for _, addr := range addrs {
 		var ip net.IP
-		switch v:= addr.(type) {
+		switch v := addr.(type) {
 		case *net.IPNet:
 			ip = v.IP
 		case *net.IPAddr:

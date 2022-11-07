@@ -3,7 +3,9 @@ package cmd
 import (
 	goflag "flag"
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	conf "github.com/sapcc/go-pmtud/internal/config"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
@@ -49,9 +51,14 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&cfg.HealthPort, "health_port", 30041, "Port for healthz")
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
 	rootCmd.PersistentFlags().IntVar(&cfg.TimeToLive, "ttl", 1, "TTL for resent packets")
+	rootCmd.PersistentFlags().IntVar(&cfg.ArpCacheTimeoutMinutes, "node-timeout-minutes", 5, "Timeout in minutes for node arp entry")
+	rootCmd.PersistentFlags().IntVar(&cfg.ArpRequestTimeoutSeconds, "arp-timeout-seconds", 1, "Timeout in seconds for node arp request")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
 	_ = viper.BindPFlags(rootCmd.PersistentFlags())
+
+	rand.Seed(time.Now().UnixNano())
+	cfg.RandDelay = rand.Intn(1000) + 1000
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
 	cfg.PeerList = make(map[string]conf.PeerEntry)
