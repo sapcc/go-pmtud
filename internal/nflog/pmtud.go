@@ -37,7 +37,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 
 	nodeIface := cfg.ReplicationInterface
 	//ensure counters are reported
-	metrics.RecvPackets.WithLabelValues(cfg.NodeName).Add(0)
+	metrics.RecvPackets.WithLabelValues(cfg.NodeName, "").Add(0)
 	metrics.Error.WithLabelValues(cfg.NodeName).Add(0)
 
 	//TODO: make this a better logger
