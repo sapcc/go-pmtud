@@ -168,7 +168,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			log.Info("packet:", "size", len(packet))
 
 			addr := net.ParseIP(cfg.MulticastAddr)
-			_, err = conn.WriteToUDP(packet, &net.UDPAddr{IP: addr, Port: cfg.MetricsPort})
+			_, err = conn.WriteToUDP(packet, &net.UDPAddr{IP: addr, Port: cfg.MulticastPort})
 			if err != nil {
 				log.Error(err, "error sending multicast packet")
 				return 1
