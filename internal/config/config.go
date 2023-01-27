@@ -20,6 +20,9 @@ type Config struct {
 	NfGroup        uint16
 	KubeContext    string
 
+	Unicast   bool
+	Multicast bool
+
 	ReplicationInterface     string
 	DefaultInterface         string
 	InterfaceMtu             int
@@ -27,6 +30,8 @@ type Config struct {
 	PeerList                 map[string]PeerEntry
 	ArpCacheTimeoutMinutes   int
 	ArpRequestTimeoutSeconds int
+	MulticastAddr            string
+	MulticastPort            int
 
 	RandDelay int
 }

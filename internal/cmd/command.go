@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"encoding/hex"
 	goflag "flag"
 	"fmt"
+	"log"
 	"math/rand"
+	"net"
 	"os"
 	"time"
+
+	"github.com/sapcc/go-pmtud/internal/multicast"
 
 	conf "github.com/sapcc/go-pmtud/internal/config"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
@@ -46,7 +51,10 @@ func init() {
 	rootCmd.PersistentFlags().StringSliceVar(&cfg.InterfaceNames, "iface_names", nil, "Replication interface names to work on")
 	rootCmd.PersistentFlags().StringVar(&cfg.NodeName, "nodename", "", "Node hostname")
 	rootCmd.PersistentFlags().IntVar(&cfg.InterfaceMtu, "iface_mtu", 1500, "MTU size that replication interface should have")
-	//rootCmd.PersistentFlags().StringSliceVar(&cfg.Peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
+	rootCmd.PersistentFlags().BoolVar(&cfg.Unicast, "unicast", false, "Unicast operation model. Requires separate L2 between nodes")
+	rootCmd.PersistentFlags().BoolVar(&cfg.Multicast, "multicast", true, "Multicast operation model")
+	rootCmd.PersistentFlags().StringVar(&cfg.MulticastAddr, "multicast-address", "239.0.0.10", "Multicast address to use")
+	rootCmd.PersistentFlags().IntVar(&cfg.MulticastPort, "multicast-port", 9999, "Multicast port to use")
 	rootCmd.PersistentFlags().IntVar(&cfg.MetricsPort, "metrics_port", 30040, "Port for Prometheus metrics")
 	rootCmd.PersistentFlags().IntVar(&cfg.HealthPort, "health_port", 30041, "Port for healthz")
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
@@ -99,22 +107,30 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	// add node-controller
-	c, err := controller.New("node-controller", mgr, controller.Options{
-		Reconciler: &node.Reconciler{
-			Log:    mgr.GetLogger().WithName("node-controller"),
-			Client: mgr.GetClient(),
-			Cfg:    &cfg,
-		},
-	})
-	if err != nil {
-		log.Error(err, "error creating node-controller")
-		return err
+	if cfg.Unicast {
+		// add node-controller
+		c, err := controller.New("node-controller", mgr, controller.Options{
+			Reconciler: &node.Reconciler{
+				Log:    mgr.GetLogger().WithName("node-controller"),
+				Client: mgr.GetClient(),
+				Cfg:    &cfg,
+			},
+		})
+		if err != nil {
+			log.Error(err, "error creating node-controller")
+			return err
+		}
+		err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+		if err != nil {
+			log.Error(err, "error watching nodes")
+			return err
+		}
 	}
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		log.Error(err, "error watching nodes")
-		return err
+
+	if cfg.Multicast {
+		address := fmt.Sprintf("%s:%d", cfg.MulticastAddr, cfg.MulticastPort)
+		fmt.Printf("Listening on %s\n", address)
+		multicast.Listen(address, cfg.ReplicationInterface, cfg.MulticastAddr, msgHandler, log.WithName("multicast"))
 	}
 
 	// add nfLog controller
@@ -134,6 +150,11 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	return nil
+}
+
+func msgHandler(src *net.UDPAddr, n int, b []byte) {
+	log.Println(n, "bytes read from", src)
+	log.Println(hex.Dump(b[:n]))
 }
 
 func Execute() {
