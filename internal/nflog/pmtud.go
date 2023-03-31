@@ -18,8 +18,10 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-const nf_bufsize = 2 * 1024 * 1024
-const read_bufsize = 2 * 1024 * 1024
+const (
+	nf_bufsize   = 2 * 1024 * 1024
+	read_bufsize = 2 * 1024 * 1024
+)
 
 var wg = sync.WaitGroup{}
 
@@ -67,12 +69,17 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	}
 
 	fn := func(attrs nflog.Attribute) int {
+
 		var peerList []string
-		cfg.PeerMutex.Lock()
-		for _, peer := range cfg.PeerList {
-			peerList = append(peerList, peer.Mac)
+
+		if cfg.Unicast {
+
+			cfg.PeerMutex.Lock()
+			for _, peer := range cfg.PeerList {
+				peerList = append(peerList, peer.Mac)
+			}
+			cfg.PeerMutex.Unlock()
 		}
-		cfg.PeerMutex.Unlock()
 
 		start := time.Now()
 
@@ -113,38 +120,92 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			cancel()
 			return 1
 		}
-		for _, d := range peerList {
-			hwAddr, err := net.ParseMAC(d)
+
+		if cfg.Unicast {
+			for _, d := range peerList {
+				hwAddr, err := net.ParseMAC(d)
+				if err != nil {
+					metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+					log.Error(err, "error parsing", "peer", d)
+					cancel()
+					return 1
+				}
+				frame := ethernet.Frame{
+					Source:      interFace.HardwareAddr,
+					Destination: hwAddr,
+					EtherType:   0x0800,
+					Payload:     b,
+				}
+				bin, err := frame.MarshalBinary()
+				if err != nil {
+					metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+					log.Error(err, "error marshalling frame")
+					cancel()
+					return 1
+				}
+				addr := &raw.Addr{
+					HardwareAddr: hwAddr,
+				}
+				if _, err := conn.WriteTo(bin, addr); err != nil {
+					metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+					log.Error(err, "error writing packet")
+					cancel()
+					return 1
+				}
+				metrics.SentPackets.WithLabelValues(cfg.NodeName).Inc()
+				metrics.SentPacketsPeer.WithLabelValues(cfg.NodeName, d).Inc()
+			}
+		}
+
+		if cfg.Multicast {
+			// send in right interface
+			conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 			if err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				log.Error(err, "error parsing", "peer", d)
-				cancel()
-				return 1
+				log.Error(err, "error listening")
 			}
-			frame := ethernet.Frame{
-				Source:      interFace.HardwareAddr,
-				Destination: hwAddr,
-				EtherType:   0x0800,
-				Payload:     b,
-			}
-			bin, err := frame.MarshalBinary()
+
+			packet := b[20:]
+			log.Info("packet:", "size", len(packet))
+
+			addr := net.ParseIP(cfg.MulticastAddr)
+			_, err = conn.WriteToUDP(packet, &net.UDPAddr{IP: addr, Port: cfg.MulticastPort})
 			if err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				log.Error(err, "error marshalling frame")
-				cancel()
+				log.Error(err, "error sending multicast packet")
 				return 1
 			}
-			addr := &raw.Addr{
-				HardwareAddr: hwAddr,
-			}
-			if _, err := conn.WriteTo(bin, addr); err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				log.Error(err, "error writing packet")
-				cancel()
-				return 1
-			}
-			metrics.SentPackets.WithLabelValues(cfg.NodeName).Inc()
-			metrics.SentPacketsPeer.WithLabelValues(cfg.NodeName, d).Inc()
+
+			/*
+				c, err := net.ListenPacket("udp", "239.0.0.10:9999")
+				if err != nil {
+					metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+					klog.Errorf("Unable to create connection: %v", err)
+				}
+				defer c.Close()
+
+				p, err := ipv4.NewRawConn(c)
+				if err != nil {
+					metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+					klog.Errorf("Unable to open new raw connection: %v", err)
+				}
+
+				packet := b[20:]
+				h := &ipv4.Header{
+					Version:  ipv4.Version,
+					Len:      ipv4.HeaderLen,
+					TotalLen: ipv4.HeaderLen + len(packet),
+					ID:       12345,
+					Protocol: 1,
+					TTL:      1,
+					Dst:      net.ParseIP(srvAddr),
+				}
+
+				err = p.WriteTo(h, packet, nil)
+				if err != nil {
+					log.Error(err, "error sending multicast packet")
+					return 1
+				}
+
+			*/
 		}
 
 		duration := time.Since(start)
