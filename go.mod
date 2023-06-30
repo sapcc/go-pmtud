@@ -19,7 +19,7 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20220812174116-3211cb980234
 	k8s.io/api v0.24.3
-	k8s.io/client-go v0.24.3
+	k8s.io/client-go v11.0.0+incompatible
 	sigs.k8s.io/controller-runtime v0.12.3
 )
 
