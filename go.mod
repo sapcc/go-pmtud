@@ -1,6 +1,6 @@
 module github.com/sapcc/go-pmtud
 
-go 1.19
+go 1.21
 
 replace (
 	github.com/florianl/go-nflog/v2 => github.com/sapcc/go-nflog/v2 v2.0.1
