@@ -14,7 +14,7 @@ require (
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/raw v0.1.0
 	github.com/prometheus/client_golang v1.13.0
-	github.com/spf13/cobra v1.5.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.12.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20220812174116-3211cb980234
@@ -45,7 +45,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
