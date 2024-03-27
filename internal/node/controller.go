@@ -8,6 +8,7 @@ import (
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"strings"
@@ -39,7 +40,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	var node = corev1.Node{}
 	err := r.Client.Get(ctx, request.NamespacedName, &node)
 	if err != nil {
-		log.Error(err, "error getting node")
+		if errors.IsNotFound(err) {
+			log.Info("node not found, skip", "node", request.NamespacedName)
+			// Node could have been deleted
+			return reconcile.Result{}, nil
+		}
+		log.Error(err, "error getting node", "node", request.NamespacedName)
 		return reconcile.Result{}, err
 	}
 	if len(node.Status.Addresses) == 0 {
