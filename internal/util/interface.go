@@ -93,7 +93,7 @@ func GetInterfaceIP(name string, log logr.Logger) (string, error) {
 		}
 		return ip.String(), nil
 	}
-	err = errors.New("Interface is not connected to the network")
+	err = errors.New("interface is not connected to the network")
 	log.Error(err, "error finding interface ip")
 	return "", err
 }

@@ -60,8 +60,8 @@ func init() {
 		os.Exit(1)
 	}
 
-	source := rand.NewSource(time.Now().UnixNano())
-	rng := rand.New(source)
+	rsource := rand.NewSource(time.Now().UnixNano())
+	rng := rand.New(rsource)
 	cfg.RandDelay = rng.Intn(1000) + 1000
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
