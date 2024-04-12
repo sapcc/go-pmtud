@@ -37,7 +37,8 @@ linters-settings:
     # Report about not checking of errors in type assertions.
     check-type-assertions: true
     exclude-functions:
-      - netlink.RouteGet
+      - (netlink).RouteGet
+      - GetDefaultInterface
   forbidigo:
     forbid:
       # ioutil package has been deprecated: https://github.com/golang/go/issues/42026
