@@ -5,7 +5,6 @@ import (
 	golog "log"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/florianl/go-nflog/v2"
@@ -20,8 +19,6 @@ import (
 
 const nfBufsize = 2 * 1024 * 1024
 const readBufsize = 2 * 1024 * 1024
-
-var wg = sync.WaitGroup{}
 
 type Controller struct {
 	Log logr.Logger

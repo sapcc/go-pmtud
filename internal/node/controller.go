@@ -2,13 +2,13 @@ package node
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -42,7 +42,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	var node = corev1.Node{}
 	err := r.Client.Get(ctx, request.NamespacedName, &node)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			log.Info("node not found, skip", "node", request.NamespacedName)
 			// Node could have been deleted
 			return reconcile.Result{}, nil
@@ -51,7 +51,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 	if len(node.Status.Addresses) == 0 {
-		err = fmt.Errorf("no ip found for node %s", request.Name)
+		err = errors.New("no ip found for node")
 		return reconcile.Result{}, err
 	}
 	log.Info(node.Status.Addresses[0].Address)
@@ -61,7 +61,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 	mac, err := res.Resolve(node.Status.Addresses[0].Address)
 	if err != nil {
-		err = fmt.Errorf("could not resolve mac address for node %s", request.Name)
+		err = errors.New("could not resolve mac address for node")
 		metrics.ArpResolveError.WithLabelValues(r.Cfg.NodeName, request.Name).Inc()
 		return reconcile.Result{}, err
 	}

@@ -1,7 +1,7 @@
 package util
 
 import (
-	"fmt"
+	"errors"
 	"net"
 	"strings"
 
@@ -29,7 +29,7 @@ func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
 			}
 		}
 	}
-	err = fmt.Errorf("no interface found with names: %v", cfg.InterfaceNames)
+	err = errors.New("no configured interface found")
 	log.Error(err, "error getting replication interface")
 	return err
 }
@@ -48,7 +48,7 @@ func GetDefaultInterface(cfg *config.Config, log logr.Logger) error {
 		return err
 	}
 	if len(route) == 0 {
-		err := fmt.Errorf("no default route found")
+		err := errors.New("no default route found")
 		log.Error(err, "error getting default route")
 		return err
 	}
@@ -93,7 +93,7 @@ func GetInterfaceIP(name string, log logr.Logger) (string, error) {
 		}
 		return ip.String(), nil
 	}
-	err = fmt.Errorf("%s is not connected to the network", name)
+	err = errors.New("Interface is not connected to the network")
 	log.Error(err, "error finding interface ip")
 	return "", err
 }

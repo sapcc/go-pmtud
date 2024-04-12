@@ -55,10 +55,14 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&cfg.ArpRequestTimeoutSeconds, "arp-timeout-seconds", 1, "Timeout in seconds for node arp request")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
-	_ = viper.BindPFlags(rootCmd.PersistentFlags())
+	err := viper.BindPFlags(rootCmd.PersistentFlags())
+	if err != nil {
+		os.Exit(1)
+	}
 
-	rand.Seed(time.Now().UnixNano())
-	cfg.RandDelay = rand.Intn(1000) + 1000
+	source := rand.NewSource(time.Now().UnixNano())
+	rng := rand.New(source)
+	cfg.RandDelay = rng.Intn(1000) + 1000
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
 	cfg.PeerList = make(map[string]conf.PeerEntry)
