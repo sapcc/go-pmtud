@@ -3,16 +3,18 @@ package node
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/go-logr/logr"
-	"github.com/sapcc/go-pmtud/internal/arp"
-	"github.com/sapcc/go-pmtud/internal/config"
-	"github.com/sapcc/go-pmtud/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"strings"
-	"time"
+
+	"github.com/sapcc/go-pmtud/internal/arp"
+	"github.com/sapcc/go-pmtud/internal/config"
+	"github.com/sapcc/go-pmtud/internal/metrics"
 )
 
 type Reconciler struct {

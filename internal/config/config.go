@@ -11,7 +11,7 @@ type PeerEntry struct {
 }
 
 type Config struct {
-	//Peers []string
+	// Peers []string
 	InterfaceNames []string
 	NodeName       string
 	MetricsPort    int

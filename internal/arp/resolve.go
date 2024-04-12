@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-logr/logr"
 	mdarp "github.com/mdlayher/arp"
+
 	"github.com/sapcc/go-pmtud/internal/config"
 )
 
