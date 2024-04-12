@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	conf "github.com/sapcc/go-pmtud/internal/config"
@@ -20,9 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-
-	// "sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
