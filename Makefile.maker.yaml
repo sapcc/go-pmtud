@@ -17,6 +17,8 @@ golangciLint:
   createConfig: true
   errcheckExcludes:
     - netlink.RouteGet
+    - viper.BindPFlags
+    - rand.Seed
 
 githubWorkflow:
   ci:

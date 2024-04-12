@@ -5,7 +5,7 @@ import (
 )
 
 // CalcSrcDst counts inner packet IPv4 IPs with bytes due to missing ICMP 3/4 parsing library
-func CalcSrcDst(b []byte) (srcIP net.IP, dstIP net.IP, err error) {
+func CalcSrcDst(b []byte) (srcIP, dstIP net.IP, err error) {
 	src := b[40:44]
 	dst := b[44:48]
 

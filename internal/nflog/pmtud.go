@@ -18,8 +18,8 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-const nf_bufsize = 2 * 1024 * 1024
-const read_bufsize = 2 * 1024 * 1024
+const nfBufsize = 2 * 1024 * 1024
+const readBufsize = 2 * 1024 * 1024
 
 var wg = sync.WaitGroup{}
 
@@ -36,18 +36,18 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	ctx, cancel := context.WithCancel(startCtx)
 
 	nodeIface := cfg.ReplicationInterface
-	//ensure counters are reported
+	// ensure counters are reported
 	metrics.RecvPackets.WithLabelValues(cfg.NodeName, "").Add(0)
 	metrics.Error.WithLabelValues(cfg.NodeName).Add(0)
 
-	//TODO: make this a better logger
+	// TODO: make this a better logger
 	nflogger := golog.New(os.Stdout, "nflog:", golog.Ldate|golog.Ltime|golog.Lshortfile)
 	nfConfig := nflog.Config{
 		Group:       cfg.NfGroup,
 		Copymode:    nflog.CopyPacket,
 		ReadTimeout: 100 * time.Millisecond,
 		Logger:      nflogger,
-		Bufsize:     nf_bufsize,
+		Bufsize:     nfBufsize,
 	}
 	log.Info("Operating with", "buffersize", nfConfig.Bufsize)
 	nf, err := nflog.Open(&nfConfig)
@@ -58,7 +58,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		return err
 	}
 	defer nf.Close()
-	err = nf.Con.SetReadBuffer(read_bufsize)
+	err = nf.Con.SetReadBuffer(readBufsize)
 	if err != nil {
 		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 		log.Error(err, "error setting read buffer")

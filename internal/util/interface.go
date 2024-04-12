@@ -2,12 +2,13 @@ package util
 
 import (
 	"fmt"
+	"net"
+	"strings"
+
 	"github.com/go-logr/logr"
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/vishvananda/netlink"
-	"net"
-	"strings"
 )
 
 func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
@@ -36,7 +37,11 @@ func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
 // GetDefaultInterface gets the interface with the default route
 func GetDefaultInterface(cfg *config.Config, log logr.Logger) error {
 	// Internet is where 8.8.8.8 lives :)
-	defaultRoute, _, _ := net.ParseCIDR("8.8.8.8/32")
+	defaultRoute, _, err := net.ParseCIDR("8.8.8.8/32")
+	if err != nil {
+		log.Error(err, "could not parse cidr")
+		return err
+	}
 	route, err := netlink.RouteGet(defaultRoute)
 	if err != nil {
 		log.Error(err, "could not get default route")
@@ -58,7 +63,7 @@ func GetDefaultInterface(cfg *config.Config, log logr.Logger) error {
 	return nil
 }
 
-func GetInterfaceIp(name string, log logr.Logger) (string, error) {
+func GetInterfaceIP(name string, log logr.Logger) (string, error) {
 	interFace, err := net.InterfaceByName(name)
 	if err != nil {
 		log.Error(err, "error listing interfaces")
@@ -77,7 +82,7 @@ func GetInterfaceIp(name string, log logr.Logger) (string, error) {
 		case *net.IPAddr:
 			ip = v.IP
 		default:
-			//???
+			// ???
 		}
 		if ip == nil || ip.IsLoopback() {
 			continue

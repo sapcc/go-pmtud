@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	//"sigs.k8s.io/controller-runtime/pkg/log"
+	// "sigs.k8s.io/controller-runtime/pkg/log"
 	"strconv"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -46,7 +46,7 @@ func init() {
 	rootCmd.PersistentFlags().StringSliceVar(&cfg.InterfaceNames, "iface_names", nil, "Replication interface names to work on")
 	rootCmd.PersistentFlags().StringVar(&cfg.NodeName, "nodename", "", "Node hostname")
 	rootCmd.PersistentFlags().IntVar(&cfg.InterfaceMtu, "iface_mtu", 1500, "MTU size that replication interface should have")
-	//rootCmd.PersistentFlags().StringSliceVar(&cfg.Peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
+	// rootCmd.PersistentFlags().StringSliceVar(&cfg.Peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
 	rootCmd.PersistentFlags().IntVar(&cfg.MetricsPort, "metrics_port", 30040, "Port for Prometheus metrics")
 	rootCmd.PersistentFlags().IntVar(&cfg.HealthPort, "health_port", 30041, "Port for healthz")
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
