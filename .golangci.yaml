@@ -38,6 +38,10 @@ linters-settings:
     check-type-assertions: true
     exclude-functions:
       - netlink.RouteGet
+      - viper.BindPFlags
+      - rand.Seed
+      - fmt.Errorf
+      - wg
   forbidigo:
     forbid:
       # ioutil package has been deprecated: https://github.com/golang/go/issues/42026

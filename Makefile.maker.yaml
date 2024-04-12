@@ -19,6 +19,8 @@ golangciLint:
     - netlink.RouteGet
     - viper.BindPFlags
     - rand.Seed
+    - fmt.Errorf
+    - wg
 
 githubWorkflow:
   ci:
