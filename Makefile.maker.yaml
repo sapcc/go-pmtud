@@ -17,7 +17,6 @@ golangciLint:
   createConfig: true
   errcheckExcludes:
     - (netlink).RouteGet
-    - GetDefaultInterface
 
 githubWorkflow:
   ci:
