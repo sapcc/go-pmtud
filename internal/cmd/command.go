@@ -60,7 +60,7 @@ func init() {
 	}
 
 	rsource := rand.NewSource(time.Now().UnixNano()) //nolint:gosec // Ignoring G404: Use of weak random number generator (math/rand instead of crypto/rand)
-	rng := rand.New(rsource) //nolint:gosec // Ignoring G404: Use of weak random number generator (math/rand instead of crypto/rand)
+	rng := rand.New(rsource)
 	cfg.RandDelay = rng.Intn(1000) + 1000
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
