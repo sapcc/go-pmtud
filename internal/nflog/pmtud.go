@@ -10,7 +10,7 @@ import (
 	"github.com/florianl/go-nflog/v2"
 	"github.com/go-logr/logr"
 	"github.com/mdlayher/ethernet"
-	"github.com/mdlayher/raw"
+	"github.com/mdlayher/packet"
 	"golang.org/x/net/ipv4"
 
 	"github.com/sapcc/go-pmtud/internal/config"
@@ -104,7 +104,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			cancel()
 			return 1
 		}
-		conn, err := raw.ListenPacket(interFace, 0x0800, nil)
+		conn, err := packet.Listen(interFace, packet.Raw, 0x0800, nil)
 		if err != nil {
 			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 			log.Error(err, "unable to create listen socket", "interface", interFace)
@@ -132,7 +132,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 				cancel()
 				return 1
 			}
-			addr := &raw.Addr{
+			addr := &packet.Addr{
 				HardwareAddr: hwAddr,
 			}
 			if _, err := conn.WriteTo(bin, addr); err != nil {
