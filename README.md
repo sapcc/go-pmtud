@@ -1,5 +1,8 @@
 # go-pmtud
 
+[![CI](https://github.com/sapcc/go-pmtud/actions/workflows/ci.yaml/badge.svg)](https://github.com/sapcc/go-pmtud/actions/workflows/ci.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sapcc/go-pmtud)](https://goreportcard.com/report/github.com/sapcc/go-pmtud)
+
 `go-pmtud` is a simplified implementation of [cloudflare/pmtud](https://github.com/cloudflare/pmtud) in Go.
 
 ## Problem
