@@ -11,10 +11,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/mdlayher/ethernet"
 	"github.com/mdlayher/raw"
+	"golang.org/x/net/ipv4"
+
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/util"
-	"golang.org/x/net/ipv4"
 )
 
 const nfBufsize = 2 * 1024 * 1024
