@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/vishvananda/netlink"
+
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
-	"github.com/vishvananda/netlink"
 )
 
 func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
