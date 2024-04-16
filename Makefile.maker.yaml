@@ -3,9 +3,6 @@
 metadata:
   url: https://github.com/sapcc/go-pmtud
 
-makefile:
-  enabled: false
-
 dockerfile:
   enabled: false
 
