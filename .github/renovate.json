@@ -13,7 +13,7 @@
   ],
   "commitMessageAction": "Renovate: Update",
   "constraints": {
-    "go": "1"
+    "go": "1.22"
   },
   "dependencyDashboardOSVVulnerabilitySummary": "all",
   "osvVulnerabilityAlerts": true,
@@ -26,7 +26,7 @@
       "matchPackageNames": [
         "golang"
       ],
-      "allowedVersions": "1.x"
+      "allowedVersions": "1.22.x"
     },
     {
       "matchPackagePatterns": [
