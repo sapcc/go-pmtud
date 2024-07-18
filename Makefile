@@ -29,6 +29,7 @@ install-setup-envtest: FORCE
 GO_BUILDFLAGS =
 GO_LDFLAGS =
 GO_TESTENV =
+GO_BUILDENV =
 TESTBIN=$(shell pwd)/testbin
 
 # which packages to test with test runner
