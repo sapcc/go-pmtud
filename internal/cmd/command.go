@@ -19,15 +19,11 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"strconv"
 	"time"
 
-	conf "github.com/sapcc/go-pmtud/internal/config"
-	metr "github.com/sapcc/go-pmtud/internal/metrics"
-	"github.com/sapcc/go-pmtud/internal/nflog"
-	"github.com/sapcc/go-pmtud/internal/node"
-	"github.com/sapcc/go-pmtud/internal/util"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +31,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+
+	conf "github.com/sapcc/go-pmtud/internal/config"
+	metr "github.com/sapcc/go-pmtud/internal/metrics"
+	"github.com/sapcc/go-pmtud/internal/nflog"
+	"github.com/sapcc/go-pmtud/internal/node"
+	"github.com/sapcc/go-pmtud/internal/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
