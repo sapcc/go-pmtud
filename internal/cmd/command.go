@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +31,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	conf "github.com/sapcc/go-pmtud/internal/config"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
@@ -41,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -102,7 +104,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	}).WithName("runRoot")
 	ctrl.SetLogger(log)
 	managerOpts := manager.Options{
-		MetricsBindAddress:     ":" + strconv.Itoa(viper.GetInt("metrics_port")),
+		Metrics:                metricsserver.Options{BindAddress: strconv.Itoa(viper.GetInt("metrics_port"))},
 		HealthProbeBindAddress: ":" + strconv.Itoa(cfg.HealthPort),
 	}
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
@@ -128,7 +130,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		log.Error(err, "error creating node-controller")
 		return err
 	}
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}, &handler.TypedEnqueueRequestForObject[*corev1.Node]{}))
 	if err != nil {
 		log.Error(err, "error watching nodes")
 		return err
