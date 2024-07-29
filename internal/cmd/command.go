@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strconv"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -104,7 +103,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	}).WithName("runRoot")
 	ctrl.SetLogger(log)
 	managerOpts := manager.Options{
-		Metrics:                metricsserver.Options{BindAddress: strconv.Itoa(viper.GetInt("metrics_port"))},
+		Metrics:                metricsserver.Options{BindAddress: cfg.MetricsPort},
 		HealthProbeBindAddress: cfg.HealthPort,
 	}
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
