@@ -28,8 +28,8 @@ type Config struct {
 	// Peers []string
 	InterfaceNames []string
 	NodeName       string
-	MetricsPort    int
-	HealthPort     int
+	MetricsPort    string
+	HealthPort     string
 	TimeToLive     int
 	NfGroup        uint16
 	KubeContext    string

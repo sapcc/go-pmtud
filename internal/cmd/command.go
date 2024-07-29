@@ -62,8 +62,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.NodeName, "nodename", "", "Node hostname")
 	rootCmd.PersistentFlags().IntVar(&cfg.InterfaceMtu, "iface_mtu", 1500, "MTU size that replication interface should have")
 	// rootCmd.PersistentFlags().StringSliceVar(&cfg.Peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
-	rootCmd.PersistentFlags().IntVar(&cfg.MetricsPort, "metrics_port", 30040, "Port for Prometheus metrics")
-	rootCmd.PersistentFlags().IntVar(&cfg.HealthPort, "health_port", 30041, "Port for healthz")
+	rootCmd.PersistentFlags().StringVar(&cfg.MetricsPort, "metrics_port", ":30040", "Port for Prometheus metrics")
+	rootCmd.PersistentFlags().StringVar(&cfg.HealthPort, "health_port", ":30041", "Port for healthz")
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
 	rootCmd.PersistentFlags().IntVar(&cfg.TimeToLive, "ttl", 1, "TTL for resent packets")
 	rootCmd.PersistentFlags().IntVar(&cfg.ArpCacheTimeoutMinutes, "node-timeout-minutes", 5, "Timeout in minutes for node arp entry")
@@ -105,7 +105,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(log)
 	managerOpts := manager.Options{
 		Metrics:                metricsserver.Options{BindAddress: strconv.Itoa(viper.GetInt("metrics_port"))},
-		HealthProbeBindAddress: ":" + strconv.Itoa(cfg.HealthPort),
+		HealthProbeBindAddress: cfg.HealthPort,
 	}
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
 	if err != nil {
