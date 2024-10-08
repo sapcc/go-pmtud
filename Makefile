@@ -49,16 +49,21 @@ check: FORCE static-check build/cover.html
 
 generate: install-controller-gen
 	@printf "\e[1;36m>> controller-gen\e[0m\n"
-	@controller-gen rbac:roleName=go-pmtud paths="./..." output:crd:artifacts:config=crd
+	@controller-gen crd rbac:roleName=go-pmtud webhook paths="./..." output:crd:artifacts:config=crd
 	@controller-gen object paths="./..."
 
 run-golangci-lint: FORCE prepare-static-check
 	@printf "\e[1;36m>> golangci-lint\e[0m\n"
 	@golangci-lint run
 
+KUBEBUILDER_ASSETS ?= $(shell setup-envtest use 1.31 --bin-dir $(TESTBIN) -p path)
+ifeq ($(KUBEBUILDER_ASSETS),)
+$(error setup-envtest failed)
+endif
+
 build/cover.out: FORCE generate install-setup-envtest | build
 	@printf "\e[1;36m>> Running tests\e[0m\n"
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use 1.31 --bin-dir $(TESTBIN) -p path)" go test -shuffle=on -p 1 -coverprofile=$@ $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -covermode=count -coverpkg=$(subst $(space),$(comma),$(GO_COVERPKGS)) $(GO_TESTPKGS)
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -shuffle=on -p 1 -coverprofile=$@ $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -covermode=count -coverpkg=$(subst $(space),$(comma),$(GO_COVERPKGS)) $(GO_TESTPKGS)
 
 build/cover.html: build/cover.out
 	@printf "\e[1;36m>> go tool cover > build/cover.html\e[0m\n"
@@ -93,6 +98,7 @@ vars: FORCE
 	@printf "GO_COVERPKGS=$(GO_COVERPKGS)\n"
 	@printf "GO_LDFLAGS=$(GO_LDFLAGS)\n"
 	@printf "GO_TESTPKGS=$(GO_TESTPKGS)\n"
+	@printf "KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)\n"
 	@printf "TESTBIN=$(TESTBIN)\n"
 help: FORCE
 	@printf "\n"
