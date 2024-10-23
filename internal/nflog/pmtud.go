@@ -149,8 +149,10 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			addr := &packet.Addr{
 				HardwareAddr: hwAddr,
 			}
+			metrics.SentError.WithLabelValues(cfg.NodeName, d).Add(0)
 			if _, err := conn.WriteTo(bin, addr); err != nil {
 				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+				metrics.SentError.WithLabelValues(cfg.NodeName, d).Inc()
 				log.Error(err, "error writing packet")
 				cancel()
 				return 1
