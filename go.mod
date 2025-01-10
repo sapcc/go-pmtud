@@ -2,7 +2,7 @@ module github.com/sapcc/go-pmtud
 
 go 1.23
 
-replace github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20250110152611-3db6106fcf10
+replace github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20250110162920-e2ed913995be
 
 require (
 	github.com/florianl/go-nflog/v2 v2.1.0
