@@ -16,9 +16,7 @@ package nflog
 
 import (
 	"context"
-	golog "log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/florianl/go-nflog/v2"
@@ -53,13 +51,10 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	metrics.Error.WithLabelValues(cfg.NodeName).Add(0)
 
 	// TODO: make this a better logger
-	nflogger := golog.New(os.Stdout, "nflog:", golog.Ldate|golog.Ltime|golog.Lshortfile)
 	nfConfig := nflog.Config{
-		Group:       cfg.NfGroup,
-		Copymode:    nflog.CopyPacket,
-		ReadTimeout: 100 * time.Millisecond,
-		Logger:      nflogger,
-		Bufsize:     nfBufsize,
+		Group:    cfg.NfGroup,
+		Copymode: nflog.CopyPacket,
+		Bufsize:  nfBufsize,
 	}
 	log.Info("Operating with", "buffersize", nfConfig.Bufsize)
 	nf, err := nflog.Open(&nfConfig)
@@ -166,19 +161,21 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		return 0
 	}
 
-	errChan, err := nf.Register(ctx, fn)
+	err = nf.RegisterWithErrorFunc(ctx, fn, func(err error) int {
+		log.Error(err, "nflog error")
+		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		cancel()
+		return 0
+	})
+
 	if err != nil {
 		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 		log.Error(err, "nflog register error")
 		return err
 	}
 
-	select {
-	case err := <-errChan:
-		log.Error(err, "error channel closed")
-		cancel()
-	case <-ctx.Done():
-	}
+	<-ctx.Done()
+	cancel() // Ensure the context is canceled to remove the hook gracefully
 
 	return nil
 }

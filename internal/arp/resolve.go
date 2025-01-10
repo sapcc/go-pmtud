@@ -16,6 +16,7 @@ package arp
 
 import (
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -62,8 +63,12 @@ func (r *Resolver) Resolve(ip string) (string, error) {
 		log.Error(err, "error setting deadline")
 		return "", err
 	}
-	netip := net.ParseIP(ip)
-	mac, err := c.Resolve(netip)
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		log.Error(err, "error parsing ip address")
+		return "", err
+	}
+	mac, err := c.Resolve(addr)
 	if err != nil {
 		log.Error(err, "error resolving mac for ip")
 		return "", err

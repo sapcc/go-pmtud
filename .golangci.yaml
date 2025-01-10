@@ -92,6 +92,8 @@ linters-settings:
   gomoddirectives:
     toolchain-forbidden: true
     go-version-pattern: '1\.\d+(\.0)?$'
+    replace-allow-list:
+      - github.com/mdlayher/arp
   gosec:
     excludes:
       # gosec wants us to set a short ReadHeaderTimeout to avoid Slowloris attacks, but doing so would expose us to Keep-Alive race conditions (see https://iximiuz.com/en/posts/reverse-proxy-http-keep-alive-and-502s/)
