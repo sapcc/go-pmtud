@@ -11,8 +11,7 @@ golang:
   setGoModVersion: true
 
 golangciLint:
-  # needed to allow replacements in go.mod
-  createConfig: false
+  createConfig: true
   errcheckExcludes:
     - (netlink).RouteGet
 
