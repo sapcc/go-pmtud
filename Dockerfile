@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+#
+# SPDX-License-Identifier: Apache-2.0
+
 FROM golang:1.23 AS builder
 
 WORKDIR /go/src/github.com/sapcc/go-pmtud
