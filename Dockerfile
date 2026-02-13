@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.23 AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /go/src/github.com/sapcc/go-pmtud
 ADD go.mod go.sum ./
