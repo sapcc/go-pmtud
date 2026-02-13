@@ -1,16 +1,5 @@
-// Copyright 2024 SAP SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-License-Identifier: Apache-2.0
 
 package cmd
 
@@ -74,8 +63,8 @@ func init() {
 		os.Exit(1)
 	}
 
-	rsource := rand.NewSource(time.Now().UnixNano())
-	rng := rand.New(rsource) //nolint:gosec // Ignoring G404: Use of weak random number generator (math/rand instead of crypto/rand)
+	randSource := rand.NewSource(time.Now().UnixNano())
+	rng := rand.New(randSource) //nolint:gosec // Ignoring G404: Use of weak random number generator (math/rand instead of crypto/rand)
 	cfg.RandDelay = rng.Intn(1000) + 1000
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
