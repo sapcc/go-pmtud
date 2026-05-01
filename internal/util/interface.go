@@ -6,37 +6,12 @@ package util
 import (
 	"errors"
 	"net"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/vishvananda/netlink"
 
 	"github.com/sapcc/go-pmtud/internal/config"
-	"github.com/sapcc/go-pmtud/internal/metrics"
 )
-
-func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
-	interFaces, err := net.Interfaces()
-	if err != nil {
-		log.Error(err, "error listing interfaces")
-		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-		return err
-	}
-	for _, name := range cfg.InterfaceNames {
-		for _, interFace := range interFaces {
-			if interFace.MTU != cfg.InterfaceMtu {
-				continue
-			}
-			if strings.Compare(interFace.Name, name) == 0 {
-				cfg.ReplicationInterface = name
-				return nil
-			}
-		}
-	}
-	err = errors.New("no configured interface found")
-	log.Error(err, "error getting replication interface")
-	return err
-}
 
 // GetDefaultInterface gets the interface with the default route
 func GetDefaultInterface(cfg *config.Config, log logr.Logger) error {

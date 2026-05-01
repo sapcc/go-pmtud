@@ -4,32 +4,23 @@
 package config
 
 import (
+	"net"
 	"sync"
-	"time"
 )
 
-type PeerEntry struct {
-	LastUpdated time.Time
-	Mac         string
-}
-
 type Config struct {
-	// Peers []string
-	InterfaceNames []string
-	NodeName       string
-	MetricsPort    string
-	HealthPort     string
-	TimeToLive     int
-	NfGroup        uint16
-	KubeContext    string
+	NodeName        string
+	MetricsPort     string
+	HealthPort      string
+	TimeToLive      int
+	NfGroup         uint16
+	KubeContext     string
+	ReplicationPort int
 
-	ReplicationInterface     string
-	DefaultInterface         string
-	InterfaceMtu             int
-	PeerMutex                sync.Mutex
-	PeerList                 map[string]PeerEntry
-	ArpCacheTimeoutMinutes   int
-	ArpRequestTimeoutSeconds int
+	DefaultInterface string
+	PeerMutex        sync.Mutex
+	PeerList         map[string]string // nodeName → IP
 
-	RandDelay int
+	IgnoreNetworksRaw []string     // raw CIDR strings from CLI
+	IgnoreNetworks    []*net.IPNet // parsed CIDRs
 }
