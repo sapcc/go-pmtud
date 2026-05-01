@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+
+schema: spec-driven
+
+context: |
+  Project: go-pmtud - replicates ICMP fragmentation-needed (type 3 code 4) packets between Kubernetes cluster nodes
+  Based on: cloudflare/pmtud concept (https://blog.cloudflare.com/path-mtu-discovery-in-practice/)
+  
+  Tech stack:
+  - Go 1.26
+  - controller-runtime (sigs.k8s.io/controller-runtime) for Kubernetes reconciliation and manager lifecycle
+  - cobra/viper for CLI flags
+  - NFLOG (github.com/florianl/go-nflog/v2) for kernel packet capture
+  - Prometheus metrics (prometheus/client_golang)
+  - Runs as a DaemonSet with host networking and CAP_NET_RAW
+  
+  Architecture:
+  - cmd/go-pmtud/main.go: entrypoint
+  - internal/cmd/: cobra root command, flag parsing, manager setup
+  - internal/config/: shared Config struct (passed by pointer to all components)
+  - internal/node/: controller-runtime Reconciler watching corev1.Node resources
+  - internal/nflog/: controller-runtime Runnable that captures ICMP packets via NFLOG and replicates them
+  - internal/packet/: ICMP packet parsing utilities
+  - internal/util/: interface discovery, IP helpers
+  - internal/metrics/: Prometheus metric declarations
+  - internal/arp/: ARP resolution (L2 dependency, to be removed)
+  
+  Build tooling: go-makefile-maker (https://github.com/sapcc/go-makefile-maker)
+  - Generates Makefile, GitHub workflows, Dockerfile, golangci-lint config from Makefile.maker.yaml
+  - Config file: Makefile.maker.yaml in repo root
+  - DO NOT edit the generated Makefile directly — edit Makefile.maker.yaml and re-run go-makefile-maker
+  - Key config sections: metadata, dockerfile, golang, golangciLint, githubWorkflow, renovate, controllerGen
+  - Current project config: controllerGen enabled (generates CRDs/RBAC/objects/applyconfigurations),
+    golangciLint with createConfig: true, GitHub CI/security/license/GHCR push workflows enabled
+  - Targets: `make check` (lint + test), `make static-check` (golangci-lint + shellcheck + typos + license checks),
+    `make build/cover.html` (test coverage), `make generate` (controller-gen), `make tidy-deps` (go mod tidy + verify)
+  - Tests use setup-envtest (KUBEBUILDER_ASSETS) for controller-runtime integration tests
+  
+  Conventions:
+  - SPDX license headers on all files (enforced by addlicense + reuse lint)
+  - go-makefile-maker generated Makefile — never hand-edit
+  - golangci-lint for linting (config auto-generated from Makefile.maker.yaml)
+  - controller-runtime patterns: Reconciler interface, manager.Runnable for long-running goroutines
+  - Peer list protected by sync.Mutex in shared Config struct
+  - Build: `go build -v -o /go-pmtud cmd/go-pmtud/main.go`
+  - Tests: `make check` or `go test ./...` (uses setup-envtest for controller-runtime tests)
+  - Docker image built via generated Dockerfile (Alpine-based, multi-stage)
+  - GHCR push with tag strategies: edge, latest, semver, sha
+
+rules:
+  proposal:
+    - Keep proposals concise (1-2 pages max)
+    - Focus on Kubernetes networking and ICMP/PMTU domain
+  design:
+    - Reference controller-runtime patterns (Reconciler, Runnable, Manager)
+    - Consider CAP_NET_RAW and host networking implications
+    - Address loop prevention (nodes must not re-replicate received packets)
+  tasks:
+    - Each task should be completable in one coding session
+    - Order by dependency (config changes first, then logic, then cleanup)
+    - Include a final build verification task
+    - Do NOT include tasks to edit the generated Makefile — only Makefile.maker.yaml changes if needed

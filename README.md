@@ -100,12 +100,15 @@ pmtud:
 
 ## Example - iptables and NFlog
 
-There is an iptables rule on each node that redirects ICMP Destination Unreachable` packets to NFlog group nr. 33:
+There is an iptables rule on each node that redirects ICMP Destination Unreachable packets to NFlog group nr. 33.
 
-`iptables -t raw -D PREROUTING -i <interface> -p icmp -m icmp --icmp-type 3/4 --j NFLOG --nflog-group 33`
+**Important:** The rule MUST exclude the `pmtud0` TUN interface to prevent replication loops. Packets injected via the TUN device must not be recaptured by NFLOG:
 
-Important: we need ignore packets from summarized source networks of all nodes in the local cluster to avoid re-sending loops. Use `ignore-networks` option for this. 
-This means a node will not re-send already retransmitted ICMP messages. It will only resend messages that are usually originated by routers on the path. 
+```
+iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
+```
+
+Optionally, use `--ignore-networks` to filter packets from known infrastructure networks (e.g., node subnets) as an additional safety layer.
 
 ## License
 This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details

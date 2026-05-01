@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: go-pmtud
+  labels:
+    app.kubernetes.io/name: go-pmtud
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: go-pmtud
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: go-pmtud
+    spec:
+      serviceAccountName: go-pmtud
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      initContainers:
+        - name: iptables-setup
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache iptables
+              # NFLOG rule for ICMP frag-needed, excluding TUN device to prevent loops
+              iptables -t raw -C PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33 2>/dev/null || \
+              iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+      containers:
+        - name: go-pmtud
+          image: go-pmtud:local
+          imagePullPolicy: Never
+          command:
+            - /go-pmtud
+          args:
+            - --replication-port=4390
+            - --nflog_group=33
+            - --nodename=$(NODE_NAME)
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi

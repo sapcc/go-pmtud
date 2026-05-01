@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: pmtud-cluster-b
+networking:
+  disableDefaultCNI: false
+  podSubnet: "10.245.0.0/16"
+  serviceSubnet: "10.112.0.0/12"
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

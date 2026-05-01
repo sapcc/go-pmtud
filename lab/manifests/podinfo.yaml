@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podinfo
+  labels:
+    app: podinfo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: podinfo
+  template:
+    metadata:
+      labels:
+        app: podinfo
+    spec:
+      containers:
+        - name: podinfo
+          image: ghcr.io/stefanprodan/podinfo:6.6.2
+          ports:
+            - containerPort: 9898
+              name: http
+          command:
+            - ./podinfo
+            - --port=9898
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: podinfo
+spec:
+  type: NodePort
+  selector:
+    app: podinfo
+  ports:
+    - port: 9898
+      targetPort: 9898
+      nodePort: 30080
+      protocol: TCP

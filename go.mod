@@ -2,19 +2,15 @@ module github.com/sapcc/go-pmtud
 
 go 1.26
 
-replace github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20250110162920-e2ed913995be
-
 require (
 	github.com/florianl/go-nflog/v2 v2.2.0
 	github.com/go-logr/logr v1.4.3
-	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
-	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
-	github.com/mdlayher/packet v1.1.2
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/vishvananda/netlink v1.3.1
 	golang.org/x/net v0.47.0
+	golang.org/x/sys v0.43.0
 	k8s.io/api v0.35.0
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
@@ -68,7 +64,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.9.0 // indirect

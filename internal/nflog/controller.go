@@ -10,8 +10,6 @@ import (
 
 	"github.com/florianl/go-nflog/v2"
 	"github.com/go-logr/logr"
-	"github.com/mdlayher/ethernet"
-	"github.com/mdlayher/packet"
 	"golang.org/x/net/ipv4"
 
 	"github.com/sapcc/go-pmtud/internal/config"
@@ -34,12 +32,20 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 
 	ctx, cancel := context.WithCancel(startCtx)
 
-	nodeIface := cfg.ReplicationInterface
 	// ensure counters are reported
 	metrics.RecvPackets.WithLabelValues(cfg.NodeName, "").Add(0)
 	metrics.Error.WithLabelValues(cfg.NodeName).Add(0)
 
-	// TODO: make this a better logger
+	// Create persistent UDP socket for sending to peers
+	sendConn, err := net.ListenUDP("udp4", nil)
+	if err != nil {
+		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		log.Error(err, "error creating UDP send socket")
+		cancel()
+		return err
+	}
+	defer sendConn.Close()
+
 	nfConfig := nflog.Config{
 		Group:    cfg.NfGroup,
 		Copymode: nflog.CopyPacket,
@@ -63,10 +69,10 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	}
 
 	fn := func(attrs nflog.Attribute) int {
-		var peerList []string
+		var peerIPs []string
 		cfg.PeerMutex.Lock()
-		for _, peer := range cfg.PeerList {
-			peerList = append(peerList, peer.Mac)
+		for _, ip := range cfg.PeerList {
+			peerIPs = append(peerIPs, ip)
 		}
 		cfg.PeerMutex.Unlock()
 
@@ -83,6 +89,19 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		}
 		sourceIP := rcvHeader.Src
 
+		// Check if source IP is in ignore-networks (loop prevention)
+		if isIgnoredNetwork(sourceIP, cfg.IgnoreNetworks) {
+			log.Info("skipping packet from ignored network", "source", sourceIP)
+			return 0
+		}
+
+		// Defense-in-depth: skip if source IP matches any peer node IP
+		// (prevents loops if a peer-injected packet is re-captured)
+		if isPeerIP(sourceIP, peerIPs) {
+			log.Info("skipping packet from peer node", "source", sourceIP)
+			return 0
+		}
+
 		s, d, err := util.CalcSrcDst(b)
 		if err != nil {
 			log.Error(err, "Unable to calculate inner source and destination IP addresses")
@@ -95,54 +114,19 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			"source IP", s,
 			"could not send to destination IP", d)
 
-		interFace, err := net.InterfaceByName(nodeIface)
-		if err != nil {
-			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "unable to get interface", "name", nodeIface)
-			cancel()
-			return 1
-		}
-		conn, err := packet.Listen(interFace, packet.Raw, 0x0800, nil)
-		if err != nil {
-			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "unable to create listen socket", "interface", interFace)
-			cancel()
-			return 1
-		}
-		for _, d := range peerList {
-			hwAddr, err := net.ParseMAC(d)
-			if err != nil {
+		for _, peerIP := range peerIPs {
+			peerAddr := &net.UDPAddr{
+				IP:   net.ParseIP(peerIP),
+				Port: cfg.ReplicationPort,
+			}
+			if _, err := sendConn.WriteTo(b, peerAddr); err != nil {
 				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				log.Error(err, "error parsing", "peer", d)
-				cancel()
-				return 1
-			}
-			frame := ethernet.Frame{
-				Source:      interFace.HardwareAddr,
-				Destination: hwAddr,
-				EtherType:   0x0800,
-				Payload:     b,
-			}
-			bin, err := frame.MarshalBinary()
-			if err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				log.Error(err, "error marshalling frame")
-				cancel()
-				return 1
-			}
-			addr := &packet.Addr{
-				HardwareAddr: hwAddr,
-			}
-			metrics.SentError.WithLabelValues(cfg.NodeName, d).Add(0)
-			if _, err := conn.WriteTo(bin, addr); err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				metrics.SentError.WithLabelValues(cfg.NodeName, d).Inc()
-				log.Error(err, "error writing packet")
-				cancel()
-				return 1
+				metrics.SentError.WithLabelValues(cfg.NodeName, peerIP).Inc()
+				log.Error(err, "error writing packet to peer", "peer", peerIP)
+				continue
 			}
 			metrics.SentPackets.WithLabelValues(cfg.NodeName).Inc()
-			metrics.SentPacketsPeer.WithLabelValues(cfg.NodeName, d).Inc()
+			metrics.SentPacketsPeer.WithLabelValues(cfg.NodeName, peerIP).Inc()
 		}
 
 		duration := time.Since(start)
@@ -164,7 +148,25 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	}
 
 	<-ctx.Done()
-	cancel() // Ensure the context is canceled to remove the hook gracefully
+	cancel()
 
 	return nil
+}
+
+func isIgnoredNetwork(ip net.IP, networks []*net.IPNet) bool {
+	for _, network := range networks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPeerIP(ip net.IP, peerIPs []string) bool {
+	for _, peer := range peerIPs {
+		if ip.Equal(net.ParseIP(peer)) {
+			return true
+		}
+	}
+	return false
 }
