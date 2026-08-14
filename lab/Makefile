@@ -3,7 +3,7 @@
 
 .PHONY: pmtu-up down deploy test status \
         observe-router observe-node observe-replication \
-        generate-traffic verify-pmtu
+        generate-traffic verify-pmtu test-backends
 
 SCRIPTS := scripts
 
@@ -34,6 +34,9 @@ deploy-workload: ## Deploy podinfo test workload to cluster-b
 
 test: ## Run end-to-end PMTU replication test
 	@$(SCRIPTS)/test-e2e.sh
+
+test-backends: ## Test both UDP and CRD relay backends
+	@$(SCRIPTS)/test-relay-backends.sh
 
 generate-traffic: ## Generate cross-cluster traffic to trigger PMTU discovery
 	@$(SCRIPTS)/generate-traffic.sh

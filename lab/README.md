@@ -95,8 +95,46 @@ make down
 5. **Deploy** loads locally-built go-pmtud images and applies DaemonSet + podinfo
 6. **Test** generates large TCP transfers (DF set) that exceed 1500 bytes
 7. The router sends ICMP fragmentation-needed back to the source
-8. go-pmtud captures via NFLOG, replicates to peers via UDP
+8. go-pmtud captures via NFLOG, replicates to peers via UDP (or CRD)
 9. Peers inject via TUN device → kernel PMTU cache updated
+
+## Relay Backends
+
+go-pmtud supports two inter-node relay backends for distributing ICMP frag-needed packets:
+
+### UDP Backend (default)
+Sends captured packets directly via UDP port 4390 to peer nodes. Fast and simple, suitable for lab and trusted networks.
+
+```bash
+make -C lab deploy  # Default: RELAY_BACKEND=udp
+```
+
+### CRD Backend
+Routes packets through Kubernetes API server using custom PMTUNodeRelay resources. Useful in multi-namespace scenarios and Gardener clusters. Each packet is stored as a namespaced CRD object with automatic garbage collection.
+
+```bash
+RELAY_BACKEND=crd make -C lab deploy
+```
+
+#### CRD Backend Fast-Path: 4-Namespace NetNS Isolation
+
+In large clusters, PMTU cache coherence across 4+ separate namespaces with distinct network namespaces (e.g., different tenant CNI stacks) follows this fast-path:
+
+1. Each node's go-pmtud daemon subscribes to PMTUNodeRelay events in its configured relay namespace.
+2. When a frag-needed packet is captured on node-a, a PMTUNodeRelay resource is created (or updated) with the packet payload and source node annotation.
+3. The Kubernetes etcd acts as the signaling plane — all node informers watch the same namespace, triggering inject callbacks immediately.
+4. The local TUN device injects the packet back into the kernel, updating the PMTU cache.
+5. The resource is deleted after injection (or expires after TTL), ensuring minimal API server load.
+
+**Advantages:**
+- No direct node-to-node connectivity needed
+- Leverages existing Kubernetes RBAC and audit trails
+- Works transparently across NetNS boundaries
+
+**Limitations:**
+- Higher latency than UDP (API round-trip vs. L3 UDP)
+- API server becomes a throughput bottleneck under high-loss scenarios
+- Not suitable for non-Kubernetes environments
 
 ## Running from Repo Root
 

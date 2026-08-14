@@ -9,6 +9,7 @@ LAB_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(dirname "$LAB_DIR")"
 
 IMAGE_NAME="go-pmtud:local"
+RELAY_BACKEND="${RELAY_BACKEND:-udp}"
 
 echo "Building go-pmtud image..."
 docker build -t "$IMAGE_NAME" "$REPO_ROOT"
@@ -19,16 +20,25 @@ kind load docker-image "$IMAGE_NAME" --name "pmtud-cluster-a"
 echo "Loading image into pmtud-cluster-b..."
 kind load docker-image "$IMAGE_NAME" --name "pmtud-cluster-b"
 
+# Deploy CRD if using CRD backend
+if [ "$RELAY_BACKEND" = "crd" ]; then
+	echo "Deploying PMTUNodeRelay CRD to pmtud-cluster-a..."
+	kubectl --context "kind-pmtud-cluster-a" apply -f "$LAB_DIR/manifests/crd.yaml"
+
+	echo "Deploying PMTUNodeRelay CRD to pmtud-cluster-b..."
+	kubectl --context "kind-pmtud-cluster-b" apply -f "$LAB_DIR/manifests/crd.yaml"
+fi
+
 echo "Deploying RBAC to pmtud-cluster-a..."
 kubectl --context "kind-pmtud-cluster-a" -n kube-system apply -f "$LAB_DIR/manifests/rbac.yaml"
 
 echo "Deploying RBAC to pmtud-cluster-b..."
 kubectl --context "kind-pmtud-cluster-b" -n kube-system apply -f "$LAB_DIR/manifests/rbac.yaml"
 
-echo "Deploying DaemonSet to pmtud-cluster-a..."
+echo "Deploying DaemonSet to pmtud-cluster-a (relay backend: $RELAY_BACKEND)..."
 kubectl --context "kind-pmtud-cluster-a" -n kube-system apply -f "$LAB_DIR/manifests/pmtud-daemonset.yaml"
 
-echo "Deploying DaemonSet to pmtud-cluster-b..."
+echo "Deploying DaemonSet to pmtud-cluster-b (relay backend: $RELAY_BACKEND)..."
 kubectl --context "kind-pmtud-cluster-b" -n kube-system apply -f "$LAB_DIR/manifests/pmtud-daemonset.yaml"
 
 echo "Waiting for go-pmtud pods to be Ready in cluster-a..."
@@ -37,4 +47,4 @@ kubectl --context "kind-pmtud-cluster-a" -n kube-system rollout status daemonset
 echo "Waiting for go-pmtud pods to be Ready in cluster-b..."
 kubectl --context "kind-pmtud-cluster-b" -n kube-system rollout status daemonset/go-pmtud --timeout=120s
 
-echo "go-pmtud deployed and ready in both clusters"
+echo "go-pmtud deployed and ready in both clusters (backend: $RELAY_BACKEND)"

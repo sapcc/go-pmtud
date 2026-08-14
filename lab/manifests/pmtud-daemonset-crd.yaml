@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 # SPDX-License-Identifier: Apache-2.0
+# This is a variant of pmtud-daemonset.yaml using CRD relay backend instead of UDP
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -47,7 +48,7 @@ spec:
             - --replication-port=4390
             - --nflog_group=33
             - --nodename=$(NODE_NAME)
-            - --relay-backend=$(RELAY_BACKEND)
+            - --relay-backend=crd
           env:
             - name: NODE_NAME
               valueFrom:
@@ -57,8 +58,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: RELAY_BACKEND
-              value: "udp"
           securityContext:
             privileged: true
             capabilities:
