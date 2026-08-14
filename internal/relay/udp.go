@@ -76,6 +76,7 @@ func (ub *udpBackend) Send(ctx context.Context, pkt RelayPacket) error {
 
 		_, err := ub.sendConn.WriteToUDP(pkt.Payload, remoteAddr)
 		if err != nil {
+			metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
 			metrics.SentError.WithLabelValues(ub.cfg.NodeName, peerIP.String()).Inc()
 			ub.log.Error(err, "failed to send packet to peer", "peer", peerIP.String())
 			continue
