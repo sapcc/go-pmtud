@@ -61,6 +61,11 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	}
 
 	fn := func(attrs nflog.Attribute) int {
+		// go-nflog only sets Payload when the kernel copied one; drop attrs without it.
+		if attrs.Payload == nil {
+			return 0
+		}
+
 		var peerIPs []string
 		cfg.PeerMutex.Lock()
 		for _, ip := range cfg.PeerList {
@@ -74,10 +79,11 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 
 		rcvHeader, err := ipv4.ParseHeader(b)
 		if err != nil {
+			// Drop the bad packet; a non-zero return or cancel() would tear down
+			// the nflog receive goroutine permanently (manager won't restart it).
 			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 			log.Error(err, "Unable to read source IP address")
-			cancel()
-			return 1
+			return 0
 		}
 		sourceIP := rcvHeader.Src
 
@@ -96,8 +102,10 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 
 		s, d, err := util.CalcSrcDst(b)
 		if err != nil {
+			// Drop, don't tear down (see ParseHeader path above).
+			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 			log.Error(err, "Unable to calculate inner source and destination IP addresses")
-			return 1
+			return 0
 		}
 
 		metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()

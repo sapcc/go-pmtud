@@ -1,5 +1,6 @@
-/main
+/go-pmtud
 /build/
 
 .idea
 .pi/
+.superpowers/

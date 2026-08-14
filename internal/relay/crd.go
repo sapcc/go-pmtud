@@ -89,19 +89,19 @@ func (c *crdBackend) Start(ctx context.Context, inject func([]byte) error) error
 			c.log.Error(err, "decode relay payload", "obj", r.Name)
 			return
 		}
+		// Inject is idempotent (kernel just updates the PMTU cache), so re-delivery
+		// on an informer relist is harmless. Object lifecycle is owned by the
+		// source node's TTL GC, not the consumer — consumers never delete, which
+		// avoids N-1 cross-node delete amplification and inject-vs-delete races.
 		if err := inject(raw); err != nil {
 			metrics.Error.WithLabelValues(c.cfg.NodeName).Inc()
 			c.log.Error(err, "inject relayed packet", "obj", r.Name)
 			return
 		}
 		metrics.RecvPackets.WithLabelValues(c.cfg.NodeName, r.Spec.SourceNode).Inc()
-		if err := c.client.Delete(ctx, r); err != nil && !apierrors.IsNotFound(err) {
-			c.log.Error(err, "delete relay object after inject", "obj", r.Name)
-		}
 	}
 	if _, err := inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
-		AddFunc:    handle,
-		UpdateFunc: func(_, obj any) { handle(obj) },
+		AddFunc: handle,
 	}); err != nil {
 		return fmt.Errorf("add event handler: %w", err)
 	}
@@ -131,6 +131,10 @@ func (c *crdBackend) gcExpired(ctx context.Context) {
 	}
 	now := time.Now()
 	for i := range list.Items {
+		// Each node GCs only the objects it created; no cross-node delete contention.
+		if list.Items[i].Spec.SourceNode != c.cfg.NodeName {
+			continue
+		}
 		if list.Items[i].Spec.ExpiresAt.Time.After(now) {
 			continue
 		}

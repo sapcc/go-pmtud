@@ -5,9 +5,9 @@
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /go/src/github.com/sapcc/go-pmtud
-ADD go.mod go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
-ADD . .
+COPY . .
 RUN go build -v -o /go-pmtud cmd/go-pmtud/main.go
 
 FROM ubuntu:noble
