@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
@@ -54,6 +55,9 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&cfg.ReplicationPort, "replication-port", 4390, "UDP port for ICMP packet replication between nodes")
 	rootCmd.PersistentFlags().StringSliceVar(&cfg.IgnoreNetworksRaw, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma-separated CIDRs)")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
+	rootCmd.PersistentFlags().StringVar(&cfg.RelayBackend, "relay-backend", "udp", "Relay backend: udp or crd")
+	rootCmd.PersistentFlags().StringVar(&cfg.RelayNamespace, "relay-namespace", "", "Namespace for CRD relay objects (defaults to POD_NAMESPACE env var)")
+	rootCmd.PersistentFlags().DurationVar(&cfg.RelayGCInterval, "relay-gc-interval", 60*time.Second, "CRD relay garbage collection interval")
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
 	err := viper.BindPFlags(rootCmd.PersistentFlags())
 	if err != nil {
@@ -79,6 +83,19 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid ignore-network CIDR %q: %w", cidr, err)
 		}
 		cfg.IgnoreNetworks = append(cfg.IgnoreNetworks, ipNet)
+	}
+	// Validate relay backend
+	if cfg.RelayBackend != "udp" && cfg.RelayBackend != "crd" {
+		return fmt.Errorf("invalid relay backend %q: must be 'udp' or 'crd'", cfg.RelayBackend)
+	}
+	// Resolve relay namespace from flag or POD_NAMESPACE env var
+	if cfg.RelayBackend == "crd" {
+		if cfg.RelayNamespace == "" {
+			cfg.RelayNamespace = os.Getenv("POD_NAMESPACE")
+		}
+		if cfg.RelayNamespace == "" {
+			return fmt.Errorf("relay backend is 'crd' but no namespace could be resolved: set --relay-namespace or POD_NAMESPACE env var")
+		}
 	}
 	return nil
 }
