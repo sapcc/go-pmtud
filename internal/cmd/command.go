@@ -20,11 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	"github.com/sapcc/go-pmtud/api/v1alpha1"
 	conf "github.com/sapcc/go-pmtud/internal/config"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/nflog"
 	"github.com/sapcc/go-pmtud/internal/node"
-	"github.com/sapcc/go-pmtud/internal/receiver"
+	"github.com/sapcc/go-pmtud/internal/relay"
 	"github.com/sapcc/go-pmtud/internal/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -120,6 +121,12 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
+	// register v1alpha1 scheme
+	if err := v1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "error registering v1alpha1 scheme")
+		return err
+	}
+
 	// add node-controller
 	c, err := controller.New("node-controller", mgr, controller.Options{
 		Reconciler: &node.Reconciler{
@@ -138,10 +145,23 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// build relay backend
+	relayBackend, err := relay.New(cfg.RelayBackend, relay.Deps{
+		Cfg:    &cfg,
+		Log:    log.WithName("relay"),
+		Client: mgr.GetClient(),
+		Cache:  mgr.GetCache(),
+	})
+	if err != nil {
+		log.Error(err, "error creating relay backend")
+		return err
+	}
+
 	// add nfLog controller
 	nfc := nflog.Controller{
-		Log: log.WithName("nfLog-controller"),
-		Cfg: &cfg,
+		Log:   log.WithName("nfLog-controller"),
+		Cfg:   &cfg,
+		Relay: relayBackend,
 	}
 	err = mgr.Add(&nfc)
 	if err != nil {
@@ -149,14 +169,13 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// add UDP receiver
-	rc := receiver.Controller{
-		Log: log.WithName("udp-receiver"),
-		Cfg: &cfg,
-	}
-	err = mgr.Add(&rc)
+	// add relay runnable
+	err = mgr.Add(&relay.Runnable{
+		Backend: relayBackend,
+		Log:     log.WithName("relay-runnable"),
+	})
 	if err != nil {
-		log.Error(err, "error adding udp-receiver")
+		log.Error(err, "error adding relay-runnable")
 		return err
 	}
 
