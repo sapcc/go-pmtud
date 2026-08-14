@@ -1,11 +1,11 @@
 //go:build !linux
 
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
 package relay
 
-import "fmt"
+import "errors"
 
 const (
 	TUNDeviceName = "pmtud0"
@@ -18,12 +18,12 @@ type Injector struct{}
 
 // newInjector creates a new TUN injector (stub on non-linux platforms)
 func newInjector(name string) (*Injector, error) {
-	return nil, fmt.Errorf("TUN injection is only supported on Linux")
+	return nil, errors.New("not supported")
 }
 
 // Inject writes payload to the TUN device (stub)
 func (inj *Injector) Inject(payload []byte) error {
-	return fmt.Errorf("TUN injection is only supported on Linux")
+	return errors.New("not supported")
 }
 
 // Close closes the TUN device (stub)

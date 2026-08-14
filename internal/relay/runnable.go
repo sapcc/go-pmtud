@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
 package relay
@@ -23,7 +23,7 @@ func (r *Runnable) Start(ctx context.Context) error {
 	// Create TUN injector
 	inj, err := newInjector(TUNDeviceName)
 	if err != nil {
-		log.Error(err, "error creating TUN device")
+		log.Error(err, "creating TUN injector")
 		return err
 	}
 	defer inj.Close()

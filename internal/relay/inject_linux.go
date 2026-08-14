@@ -1,14 +1,16 @@
 //go:build linux
 
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
 package relay
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"syscall"
 	"unsafe"
 
 	"github.com/vishvananda/netlink"
@@ -49,7 +51,13 @@ func newInjector(name string) (*Injector, error) {
 // Inject writes payload to the TUN device
 func (inj *Injector) Inject(payload []byte) error {
 	_, err := inj.file.Write(payload)
-	return err
+	if err != nil {
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			return fmt.Errorf("tun write backpressure: %w", err)
+		}
+		return fmt.Errorf("tun write: %w", err)
+	}
+	return nil
 }
 
 // Close closes the TUN device
