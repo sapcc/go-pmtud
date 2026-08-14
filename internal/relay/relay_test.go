@@ -11,21 +11,12 @@ import (
 	"github.com/sapcc/go-pmtud/internal/config"
 )
 
-type mockCache struct{}
-
-func (m *mockCache) Get(key string) (interface{}, bool) {
-	return nil, false
-}
-
-func (m *mockCache) Set(key string, value interface{}) {
-}
-
 func TestNewUnknownBackend(t *testing.T) {
 	deps := Deps{
 		Cfg:    &config.Config{},
 		Log:    logr.Discard(),
 		Client: nil,
-		Cache:  &mockCache{},
+		Cache:  nil,
 	}
 	_, err := New("unknown", deps)
 	if err == nil {
