@@ -7,11 +7,7 @@ package relay
 
 import "errors"
 
-const (
-	TUNDeviceName = "pmtud0"
-	ifnamsiz      = 16
-	maxPacketSize = 1500
-)
+const TUNDeviceName = "pmtud0"
 
 // Injector provides packet injection via TUN device
 type Injector struct{}

@@ -40,17 +40,23 @@ func newCRDBackend(d Deps) (Relay, error) {
 	if d.Cfg.RelayNamespace == "" {
 		return nil, fmt.Errorf("crd backend requires a namespace (--relay-namespace or POD_NAMESPACE)")
 	}
+	gcTick := d.Cfg.RelayGCInterval
+	if gcTick <= 0 {
+		gcTick = 60 * time.Second // guard: time.NewTicker panics on <=0
+	}
 	return &crdBackend{
 		cfg: d.Cfg, log: d.Log, client: d.Client, cache: d.Cache,
-		ns:     d.Cfg.RelayNamespace,
-		ttl:    time.Duration(d.Cfg.TimeToLive) * time.Second,
-		gcTick: d.Cfg.RelayGCInterval,
+		ns: d.Cfg.RelayNamespace,
+		// Object lifetime is unrelated to the packet IP-TTL flag; give peers two GC
+		// sweeps to consume the relay before the source node deletes it.
+		ttl:    2 * gcTick,
+		gcTick: gcTick,
 	}, nil
 }
 
 func relayObjectName(srcNode string, payload []byte) string {
 	sum := sha256.Sum256(payload)
-	return fmt.Sprintf("%s--%s", srcNode, hex.EncodeToString(sum[:4]))
+	return fmt.Sprintf("%s--%s", srcNode, hex.EncodeToString(sum[:16]))
 }
 
 func (c *crdBackend) Send(ctx context.Context, pkt RelayPacket) error {
@@ -143,3 +149,4 @@ func (c *crdBackend) gcExpired(ctx context.Context) {
 		}
 	}
 }
+ 

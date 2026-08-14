@@ -109,6 +109,9 @@ func (ub *udpBackend) Start(ctx context.Context, inject func([]byte) error) erro
 	go func() {
 		<-ctx.Done()
 		conn.Close()
+		if ub.sendConn != nil {
+			ub.sendConn.Close()
+		}
 	}()
 
 	buf := make([]byte, maxPacketSizeUDP)

@@ -18,8 +18,8 @@ func TestRelayObjectNameStable(t *testing.T) {
 	if relayObjectName("node-b", p) == a {
 		t.Fatal("different source nodes must yield different names")
 	}
-	// <node>--<8 hex chars>
-	if len(a) != len("node-a")+2+8 {
+	// <node>--<32 hex chars> (16 bytes of sha256)
+	if len(a) != len("node-a")+2+32 {
 		t.Fatalf("unexpected name shape: %q", a)
 	}
 }

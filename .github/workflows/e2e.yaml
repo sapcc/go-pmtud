@@ -15,9 +15,14 @@ name: E2E Tests
 permissions:
   contents: read
 
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-backends:
     name: E2E Backend Tests
+    timeout-minutes: 45
     if: |
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
@@ -49,7 +54,7 @@ jobs:
           docker version
 
       - name: Build go-pmtud binary
-        run: make build
+        run: go build -v -o build/go-pmtud ./cmd/go-pmtud
 
       - name: Build container image
         run: docker build -t go-pmtud:test .

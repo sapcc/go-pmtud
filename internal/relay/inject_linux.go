@@ -19,8 +19,7 @@ import (
 
 const (
 	TUNDeviceName = "pmtud0"
-	ifnamsiz      = 16    // IFNAMSIZ on Linux
-	maxPacketSize = 1500
+	ifnamsiz      = 16 // IFNAMSIZ on Linux
 )
 
 // Injector provides packet injection via TUN device
