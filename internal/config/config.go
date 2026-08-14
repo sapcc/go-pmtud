@@ -6,6 +6,7 @@ package config
 import (
 	"net"
 	"sync"
+	"time"
 )
 
 type Config struct {
@@ -23,4 +24,8 @@ type Config struct {
 
 	IgnoreNetworksRaw []string     // raw CIDR strings from CLI
 	IgnoreNetworks    []*net.IPNet // parsed CIDRs
+
+	RelayBackend    string        // "udp" (default) or "crd"
+	RelayNamespace  string        // namespace for CRD relay objects
+	RelayGCInterval time.Duration // CRD GC sweep interval
 }

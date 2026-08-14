@@ -51,13 +51,3 @@ func New(backend string, d Deps) (Relay, error) {
 		return nil, fmt.Errorf("unknown relay backend %q (want %q or %q)", backend, BackendUDP, BackendCRD)
 	}
 }
-
-// newUDPBackend creates a UDP relay backend (stub for Task 4)
-func newUDPBackend(d Deps) (Relay, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// newCRDBackend creates a CRD relay backend (stub for Task 6)
-func newCRDBackend(d Deps) (Relay, error) {
-	return nil, fmt.Errorf("not implemented")
-}
