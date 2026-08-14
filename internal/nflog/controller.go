@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
 package nflog
@@ -14,6 +14,7 @@ import (
 
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
+	"github.com/sapcc/go-pmtud/internal/relay"
 	"github.com/sapcc/go-pmtud/internal/util"
 )
 
@@ -21,8 +22,9 @@ const nfBufsize = 2 * 1024 * 1024
 const readBufsize = 2 * 1024 * 1024
 
 type Controller struct {
-	Log logr.Logger
-	Cfg *config.Config
+	Log   logr.Logger
+	Cfg   *config.Config
+	Relay relay.Relay
 }
 
 func (nfc *Controller) Start(startCtx context.Context) error {
@@ -35,16 +37,6 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	// ensure counters are reported
 	metrics.RecvPackets.WithLabelValues(cfg.NodeName, "").Add(0)
 	metrics.Error.WithLabelValues(cfg.NodeName).Add(0)
-
-	// Create persistent UDP socket for sending to peers
-	sendConn, err := net.ListenUDP("udp4", nil)
-	if err != nil {
-		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-		log.Error(err, "error creating UDP send socket")
-		cancel()
-		return err
-	}
-	defer sendConn.Close()
 
 	nfConfig := nflog.Config{
 		Group:    cfg.NfGroup,
@@ -114,19 +106,9 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 			"source IP", s,
 			"could not send to destination IP", d)
 
-		for _, peerIP := range peerIPs {
-			peerAddr := &net.UDPAddr{
-				IP:   net.ParseIP(peerIP),
-				Port: cfg.ReplicationPort,
-			}
-			if _, err := sendConn.WriteTo(b, peerAddr); err != nil {
-				metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-				metrics.SentError.WithLabelValues(cfg.NodeName, peerIP).Inc()
-				log.Error(err, "error writing packet to peer", "peer", peerIP)
-				continue
-			}
-			metrics.SentPackets.WithLabelValues(cfg.NodeName).Inc()
-			metrics.SentPacketsPeer.WithLabelValues(cfg.NodeName, peerIP).Inc()
+		if err := nfc.Relay.Send(ctx, relay.RelayPacket{Payload: b, SrcNode: cfg.NodeName}); err != nil {
+			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+			log.Error(err, "relay send failed")
 		}
 
 		duration := time.Since(start)

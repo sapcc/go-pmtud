@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
 package nflog
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -12,7 +13,47 @@ import (
 	"time"
 
 	"github.com/sapcc/go-pmtud/internal/config"
+	"github.com/sapcc/go-pmtud/internal/relay"
 )
+
+type fakeRelay struct {
+	sent [][]byte
+}
+
+func (f *fakeRelay) Send(_ context.Context, p relay.RelayPacket) error {
+	f.sent = append(f.sent, p.Payload)
+	return nil
+}
+
+func (f *fakeRelay) Start(context.Context, func([]byte) error) error {
+	return nil
+}
+
+func TestControllerSendViaRelay(t *testing.T) {
+	testPayload := buildTestICMPPacket()
+
+	cfg := &config.Config{
+		NodeName:       "test-node",
+		PeerList:       make(map[string]string),
+		IgnoreNetworks: nil,
+	}
+
+	fr := &fakeRelay{}
+
+	// Verify the relay can send a packet
+	err := fr.Send(context.Background(), relay.RelayPacket{Payload: testPayload, SrcNode: cfg.NodeName})
+	if err != nil {
+		t.Fatalf("Send failed: %v", err)
+	}
+
+	if len(fr.sent) != 1 {
+		t.Errorf("expected 1 send call, got %d", len(fr.sent))
+	}
+
+	if len(fr.sent[0]) != len(testPayload) {
+		t.Errorf("payload size mismatch: got %d, want %d", len(fr.sent[0]), len(testPayload))
+	}
+}
 
 func TestUDPSendToAllPeers(t *testing.T) {
 	const replicationPort = 14390
