@@ -58,7 +58,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: RELAY_BACKEND
-              value: "udp"
+              value: "crd"
           securityContext:
             privileged: true
             capabilities:

@@ -118,18 +118,14 @@ LAB_REUSE=1 make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
 
 go-pmtud supports two inter-node relay backends for distributing ICMP frag-needed packets:
 
-### UDP Backend (default)
-Sends captured packets directly via UDP port 4390 to peer nodes. Fast and simple, suitable for lab and trusted networks.
-
-```bash
-make -C lab deploy  # Default: RELAY_BACKEND=udp
-```
-
-### CRD Backend
+### CRD Backend (default)
 Routes packets through Kubernetes API server using custom PMTUNodeRelay resources. Useful in multi-namespace scenarios and Gardener clusters. Each packet is stored as a namespaced CRD object with automatic garbage collection.
 
+### UDP Backend
+Sends captured packets directly via UDP port 4390 to peer nodes. Fast and simple, suitable for lab and trusted networks. To use:
+
 ```bash
-RELAY_BACKEND=crd make -C lab deploy
+RELAY_BACKEND=udp make -C lab deploy
 ```
 
 #### CRD Backend Fast-Path: 4-Namespace NetNS Isolation
