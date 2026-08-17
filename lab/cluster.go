@@ -103,13 +103,40 @@ func workerContainers(clusterName string) []string {
 }
 
 func (c *Cluster) applyFile(ctx context.Context, path string) error {
-	// TODO: implement in Task 7 (deploy)
-	// For now, return nil to allow Task 3 to complete
+	// Read YAML file
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read file %s: %w", path, err)
+	}
+
+	// Decode all objects from YAML using UniversalDeserializer
+	decoder := scheme.Codecs.UniversalDeserializer()
+	obj, _, err := decoder.Decode(data, nil, nil)
+	if err != nil {
+		return fmt.Errorf("decode %s: %w", path, err)
+	}
+
+	// Apply via Server-Side Apply (SSA)
+	if err := c.Client.Patch(ctx, obj.(client.Object), client.Apply, &client.PatchOptions{
+		FieldManager: "go-pmtud-e2e",
+		Force:        boolPtr(true),
+	}); err != nil {
+		return fmt.Errorf("apply %s: %w", path, err)
+	}
+	return nil
+}
+
+func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend string) error {
+	// TODO: read YAML, unmarshal daemonset, inject --relay-backend flag, apply
 	return nil
 }
 
 func (c *Cluster) waitRollout(ctx context.Context, ns, name string) error {
-	// TODO: implement in Task 7 (deploy)
-	// For now, return nil to allow Task 3 to complete
+	// TODO: implement via kubectl rollout status or client-go watch
 	return nil
+}
+
+// boolPtr is a helper to return a pointer to a bool value
+func boolPtr(b bool) *bool {
+	return &b
 }
