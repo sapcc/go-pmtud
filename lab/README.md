@@ -55,17 +55,13 @@ go-pmtud captures these via NFLOG and replicates to peer nodes via UDP port 4390
 cd lab/
 
 # Go e2e test suite (recommended)
-make e2e              # provision + test both backends + teardown
-LAB_REUSE=1 make e2e-reuse      # skip provisioning (fast iteration)
-LAB_KEEP=1 make e2e-keep        # keep lab after test (manual inspection)
+make e2e                          # provision + test both backends + teardown
+LAB_REUSE=1 make e2e-reuse       # skip provisioning (fast iteration)
+LAB_KEEP=1 make e2e-keep         # keep lab after test (manual inspection)
 
-# Manual lab management (legacy)
-make pmtu-up          # Create networks, clusters, router, routes
-make deploy           # Deploy go-pmtud and test workload
-make test             # Generate traffic and verify PMTU replication
-make observe-router   # Observe ICMP packets on the router
-make status           # Check lab status
-make down             # Tear down everything
+# Observability (manual inspection only)
+make observe-router              # tcpdump ICMP packets on router
+make status                       # check lab status
 ```
 
 ## Go e2e Test Suite
@@ -100,14 +96,11 @@ LAB_REUSE=1 make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
 
 | Target | Description |
 |--------|-------------|
-| `pmtu-up` | Create networks, clusters, router, configure routes |
-| `deploy` | Build and deploy go-pmtud + podinfo workload |
-| `test` | Generate traffic and verify PMTU replication |
-| `observe-router` | tcpdump ICMP frag-needed on router |
-| `observe-node` | tcpdump ICMP on a cluster node (use `CLUSTER=a NODE=worker`) |
-| `observe-replication` | tcpdump UDP 4390 replication traffic |
-| `status` | Show state of all lab components |
-| `down` | Remove all lab resources |
+| `e2e` | Run full e2e suite: provision, test both backends, teardown |
+| `e2e-reuse` | Skip provisioning, reuse existing lab (fast iteration) |
+| `e2e-keep` | Run tests but keep lab for manual inspection |
+| `observe-router` | tcpdump ICMP packets on router |
+| `status` | Show lab component status |
 
 ## How It Works
 
@@ -158,17 +151,6 @@ In large clusters, PMTU cache coherence across 4+ separate namespaces with disti
 - Higher latency than UDP (API round-trip vs. L3 UDP)
 - API server becomes a throughput bottleneck under high-loss scenarios
 - Not suitable for non-Kubernetes environments
-
-## Running from Repo Root
-
-From the repository root, you can use:
-
-```bash
-make -C lab pmtu-up
-make -C lab deploy
-make -C lab test
-make -C lab down
-```
 
 ## Known Limitations
 

@@ -1,52 +1,14 @@
 # SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: pmtu-up down deploy test status \
+.PHONY: e2e e2e-reuse e2e-keep \
         observe-router observe-node observe-replication \
-        generate-traffic verify-pmtu test-backends \
-        e2e e2e-reuse e2e-keep
+        status help
 
 SCRIPTS := scripts
 GINKGO_FLAGS ?=
 
-## Full lab lifecycle
-
-pmtu-up: ## Create networks, clusters, router, and configure routes
-	@$(SCRIPTS)/setup-networks.sh
-	@$(SCRIPTS)/setup-clusters.sh
-	@$(SCRIPTS)/setup-router.sh
-	@$(SCRIPTS)/setup-routes.sh
-
-down: ## Remove all lab resources (clusters, networks, router)
-	@echo "Tearing down lab..."
-	@kind delete cluster --name pmtud-cluster-a 2>/dev/null || true
-	@kind delete cluster --name pmtud-cluster-b 2>/dev/null || true
-	@docker rm -f pmtud-router 2>/dev/null || true
-	@$(SCRIPTS)/teardown-networks.sh
-
-deploy: deploy-pmtud deploy-workload ## Deploy go-pmtud and test workload
-
-deploy-pmtud: ## Build and deploy go-pmtud to both clusters
-	@$(SCRIPTS)/deploy-pmtud.sh
-
-deploy-workload: ## Deploy podinfo test workload to cluster-b
-	@$(SCRIPTS)/deploy-workload.sh
-
-## Testing
-
-test: ## Run end-to-end PMTU replication test
-	@$(SCRIPTS)/test-e2e.sh
-
-test-backends: ## Test both UDP and CRD relay backends
-	@$(SCRIPTS)/test-relay-backends.sh
-
-generate-traffic: ## Generate cross-cluster traffic to trigger PMTU discovery
-	@$(SCRIPTS)/generate-traffic.sh
-
-verify-pmtu: ## Verify PMTU cache on cluster-a workers
-	@$(SCRIPTS)/verify-pmtu.sh
-
-## Observation
+## Go e2e test suite
 
 observe-router: ## tcpdump ICMP frag-needed on router
 	@$(SCRIPTS)/observe.sh router
