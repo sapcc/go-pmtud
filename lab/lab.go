@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,15 +27,23 @@ type Lab struct {
 }
 
 func Provision(ctx context.Context) (*Lab, error) {
+	repoRoot := os.Getenv("REPO_ROOT")
+	if repoRoot == "" {
+		repoRoot = "."
+	}
+
 	if err := createNetworks(ctx, DefaultNetworks); err != nil {
 		return nil, err
 	}
 
-	a, err := createCluster(ctx, "pmtud-cluster-a", "lab/configs/kind-cluster-a.yaml")
+	configA := filepath.Join(repoRoot, "lab/configs/kind-cluster-a.yaml")
+	configB := filepath.Join(repoRoot, "lab/configs/kind-cluster-b.yaml")
+
+	a, err := createCluster(ctx, "pmtud-cluster-a", configA)
 	if err != nil {
 		return nil, err
 	}
-	b, err := createCluster(ctx, "pmtud-cluster-b", "lab/configs/kind-cluster-b.yaml")
+	b, err := createCluster(ctx, "pmtud-cluster-b", configB)
 	if err != nil {
 		return nil, err
 	}
