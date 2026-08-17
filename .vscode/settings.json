@@ -1,5 +1,3 @@
 {
-  "[go]": {
-    "go.buildTags": "e2e"
-  }
+  "go.buildTags": "e2e"
 }
