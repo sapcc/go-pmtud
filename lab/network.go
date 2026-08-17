@@ -8,6 +8,7 @@ package lab
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
@@ -26,7 +27,8 @@ var DefaultNetworks = []Network{
 func createNetworks(ctx context.Context, nets []Network) error {
 	for _, n := range nets {
 		// check if network exists (idempotent)
-		if err := run("docker", "network", "inspect", n.Name); err == nil {
+		cmd := exec.Command("docker", "network", "inspect", n.Name)
+		if cmd.Run() == nil {
 			continue // network already exists
 		}
 		// create network
