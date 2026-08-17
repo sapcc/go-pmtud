@@ -3,9 +3,11 @@
 
 .PHONY: pmtu-up down deploy test status \
         observe-router observe-node observe-replication \
-        generate-traffic verify-pmtu test-backends
+        generate-traffic verify-pmtu test-backends \
+        e2e e2e-reuse e2e-keep
 
 SCRIPTS := scripts
+GINKGO_FLAGS ?=
 
 ## Full lab lifecycle
 
@@ -59,6 +61,17 @@ observe-replication: ## tcpdump UDP 4390 replication traffic (CLUSTER=a|b NODE=w
 
 status: ## Show lab component status
 	@$(SCRIPTS)/status.sh
+
+## Go e2e suite
+
+e2e: ## Run Go e2e suite (provisions, tests udp+crd, tears down)
+	go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+
+e2e-reuse: ## Run e2e without reprovisioning
+	LAB_REUSE=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+
+e2e-keep: ## Run e2e but keep lab after (for manual inspection)
+	LAB_KEEP=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
 
 ## Help
 

@@ -12,18 +12,18 @@ A reproducible Kind-based lab for testing go-pmtud UDP replication across L3 bou
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          Docker Host                                     │
+│                          Docker Host                                    │
 │                                                                         │
-│  ┌─────────────────────┐         ┌─────────────────────┐               │
-│  │  pmtud-net-a        │         │  pmtud-net-b        │               │
-│  │  172.30.0.0/16      │         │  172.31.0.0/16      │               │
-│  │  MTU: 9000          │         │  MTU: 9000          │               │
-│  │                     │         │                     │               │
-│  │  ┌───────────────┐  │         │  ┌───────────────┐  │               │
-│  │  │ pmtud-cluster-a│  │         │  │ pmtud-cluster-b│  │               │
-│  │  │ (1 CP + 2 W)  │  │         │  │ (1 CP + 2 W)  │  │               │
-│  │  └───────────────┘  │         │  └───────────────┘  │               │
-│  └──────────┬──────────┘         └──────────┬──────────┘               │
+│  ┌─────────────────────┐         ┌─────────────────────┐                │
+│  │  pmtud-net-a        │         │  pmtud-net-b        │                │
+│  │  172.30.0.0/16      │         │  172.31.0.0/16      │                │
+│  │  MTU: 9000          │         │  MTU: 9000          │                │
+│  │                     │         │                     │                │
+│  │  ┌───────────────┐  │         │  ┌───────────────┐  │                │
+│  │  │ pmtud-cluster-a│  │        │  │ pmtud-cluster-b│ │                │
+│  │  │ (1 CP + 2 W)  │  │         │  │ (1 CP + 2 W)  │  │                │
+│  │  └───────────────┘  │         │  └───────────────┘  │                │
+│  └──────────┬──────────┘         └──────────┬──────────┘                │
 │             │                               │                           │
 │             │    ┌───────────────────┐      │                           │
 │             └────┤  pmtud-router     ├──────┘                           │
@@ -32,9 +32,9 @@ A reproducible Kind-based lab for testing go-pmtud UDP replication across L3 bou
 │                           │                                             │
 │                  ┌────────┴──────────┐                                  │
 │                  │  pmtud-transit    │                                  │
-│                  │  172.32.0.0/24   │                                  │
-│                  │  MTU: 1500       │                                  │
-│                  └──────────────────┘                                  │
+│                  │  172.32.0.0/24    │                                  │
+│                  │  MTU: 1500        │                                  │
+│                  └──────────────────-┘                                  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,23 +54,46 @@ go-pmtud captures these via NFLOG and replicates to peer nodes via UDP port 4390
 ```bash
 cd lab/
 
-# Full setup (networks + clusters + router + routes)
-make pmtu-up
+# Go e2e test suite (recommended)
+make e2e              # provision + test both backends + teardown
+LAB_REUSE=1 make e2e-reuse      # skip provisioning (fast iteration)
+LAB_KEEP=1 make e2e-keep        # keep lab after test (manual inspection)
 
-# Deploy go-pmtud and test workload
-make deploy
+# Manual lab management (legacy)
+make pmtu-up          # Create networks, clusters, router, routes
+make deploy           # Deploy go-pmtud and test workload
+make test             # Generate traffic and verify PMTU replication
+make observe-router   # Observe ICMP packets on the router
+make status           # Check lab status
+make down             # Tear down everything
+```
 
-# Run end-to-end validation
-make test
+## Go e2e Test Suite
 
-# Observe ICMP packets on the router
-make observe-router
+The `e2e`, `e2e-reuse`, and `e2e-keep` targets run the Go test suite with Ginkgo. They handle provisioning, testing both UDP and CRD relay backends, and cleanup.
 
-# Check lab status
-make status
+**Default (full run):**
+```bash
+make e2e
+```
+Provisions lab, runs all e2e tests (20m timeout), tears down.
 
-# Tear down everything
-make down
+**Fast iteration (reuse lab):**
+```bash
+LAB_REUSE=1 make e2e-reuse
+```
+Skips provisioning, reuses existing lab — useful when iterating on test logic.
+
+**Manual inspection (keep lab):**
+```bash
+LAB_KEEP=1 make e2e-keep
+```
+Runs tests but keeps the lab running after completion — inspect clusters, logs, or state manually. Clean up with `make down`.
+
+**Custom Ginkgo flags:**
+```bash
+make e2e GINKGO_FLAGS="-v --fail-fast"
+LAB_REUSE=1 make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
 ```
 
 ## Makefile Targets
