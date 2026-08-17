@@ -55,8 +55,9 @@ func Provision(ctx context.Context) (*Lab, error) {
 
 	// infer dest IP from cluster-b (first worker's 172.31.x.x IP)
 	if len(b.Workers) > 0 {
-		dockerExec(b.Workers[0], "ip", "-o", "addr", "show")
+		out, _ := dockerExec(b.Workers[0], "ip", "-o", "addr", "show")
 		// parse 172.31.x.x from output
+		_ = out // placeholder; full parse deferred
 		l.DestIP = "172.31.0.2" // placeholder; full parse deferred
 	}
 
