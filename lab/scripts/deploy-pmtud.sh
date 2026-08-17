@@ -23,10 +23,10 @@ kind load docker-image "$IMAGE_NAME" --name "pmtud-cluster-b"
 # Deploy CRD if using CRD backend
 if [ "$RELAY_BACKEND" = "crd" ]; then
 	echo "Deploying PMTUNodeRelay CRD to pmtud-cluster-a..."
-	kubectl --context "kind-pmtud-cluster-a" apply -f "$LAB_DIR/manifests/crd.yaml"
+	kubectl --context "kind-pmtud-cluster-a" apply -f "$REPO_ROOT/crd/pmtud.cloud.sap_pmtunoderelays.yaml"
 
 	echo "Deploying PMTUNodeRelay CRD to pmtud-cluster-b..."
-	kubectl --context "kind-pmtud-cluster-b" apply -f "$LAB_DIR/manifests/crd.yaml"
+	kubectl --context "kind-pmtud-cluster-b" apply -f "$REPO_ROOT/crd/pmtud.cloud.sap_pmtunoderelays.yaml"
 fi
 
 echo "Deploying RBAC to pmtud-cluster-a..."
