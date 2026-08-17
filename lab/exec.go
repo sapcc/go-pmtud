@@ -7,12 +7,16 @@ package lab
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
 
 func run(args ...string) error {
-	return exec.Command(args[0], args[1:]...).Run()
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func dockerExec(container string, args ...string) (string, error) {
