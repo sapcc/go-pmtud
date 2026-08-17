@@ -8,6 +8,7 @@ package lab
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 func createRouter(ctx context.Context) (string, error) {
@@ -46,6 +47,9 @@ func createRouter(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("connect %s to %s: %w", name, net, err)
 		}
 	}
+
+	// give container time to initialize interfaces
+	time.Sleep(500 * time.Millisecond)
 
 	// configure interfaces
 	if err := configureRouterInterfaces(ctx, name); err != nil {
