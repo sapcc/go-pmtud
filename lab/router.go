@@ -78,7 +78,9 @@ func configureRouterInterfaces(ctx context.Context, router string) error {
 		}
 
 		// disable offloads
-		dockerExec(router, "ethtool", "-K", iface, "gso", "off", "gro", "off", "tso", "off")
+		if _, err := dockerExec(router, "ethtool", "-K", iface, "gso", "off", "gro", "off", "tso", "off"); err != nil {
+			return fmt.Errorf("disable offloads on %s: %w", iface, err)
+		}
 	}
 
 	return nil
