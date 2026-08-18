@@ -12,7 +12,6 @@ import (
 )
 
 func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
-	// Build image
 	repoRoot := os.Getenv("REPO_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
@@ -21,53 +20,23 @@ func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
 		return fmt.Errorf("build go-pmtud image: %w", err)
 	}
 
-	// Load image into both clusters and apply manifests
-	for _, c := range []*Cluster{l.ClusterA, l.ClusterB} {
-		// Load image into Kind cluster
-		if err := run("kind", "load", "docker-image", "go-pmtud:local", "--name", c.Name); err != nil {
-			return fmt.Errorf("load image to %s: %w", c.Name, err)
-		}
-
-		// Apply CRD if backend=crd
-		if backend == "crd" {
-			crds := repoRoot + "/crd/pmtud.cloud.sap_pmtunoderelays.yaml"
-			if err := c.applyFile(ctx, crds); err != nil {
-				return fmt.Errorf("apply CRD to %s: %w", c.Name, err)
-			}
-		}
-
-		// Apply RBAC
-		if err := c.applyFile(ctx, repoRoot+"/lab/manifests/rbac.yaml"); err != nil {
-			return fmt.Errorf("apply RBAC to %s: %w", c.Name, err)
-		}
-
-		// Apply daemonset (inject backend flag)
-		if err := c.applyDaemonSet(ctx, repoRoot+"/lab/manifests/pmtud-daemonset.yaml", backend); err != nil {
-			return fmt.Errorf("apply daemonset to %s: %w", c.Name, err)
-		}
-
-		// Wait for rollout
-		if err := c.waitRollout(ctx, "kube-system", "go-pmtud"); err != nil {
-			return fmt.Errorf("wait rollout %s: %w", c.Name, err)
+	c := l.Cluster
+	if err := run("kind", "load", "docker-image", "go-pmtud:local", "--name", c.Name); err != nil {
+		return fmt.Errorf("load image to %s: %w", c.Name, err)
+	}
+	if backend == "crd" {
+		if err := c.applyFile(ctx, repoRoot+"/crd/pmtud.cloud.sap_pmtunoderelays.yaml"); err != nil {
+			return fmt.Errorf("apply CRD: %w", err)
 		}
 	}
-
-	// Deploy podinfo workload
-	if err := l.deployWorkload(ctx); err != nil {
-		return fmt.Errorf("deploy workload: %w", err)
+	if err := c.applyFile(ctx, repoRoot+"/lab/manifests/rbac.yaml"); err != nil {
+		return fmt.Errorf("apply RBAC: %w", err)
 	}
-
+	if err := c.applyDaemonSet(ctx, repoRoot+"/lab/manifests/pmtud-daemonset.yaml", backend); err != nil {
+		return fmt.Errorf("apply daemonset: %w", err)
+	}
+	if err := c.waitRollout(ctx, "kube-system", "go-pmtud"); err != nil {
+		return fmt.Errorf("wait rollout: %w", err)
+	}
 	return nil
-}
-
-func (l *Lab) deployWorkload(ctx context.Context) error {
-	repoRoot := os.Getenv("REPO_ROOT")
-	if repoRoot == "" {
-		repoRoot = "."
-	}
-	if err := l.ClusterB.applyFile(ctx, repoRoot+"/lab/manifests/podinfo.yaml"); err != nil {
-		return fmt.Errorf("apply podinfo: %w", err)
-	}
-	return run("kubectl", "--kubeconfig", l.ClusterB.KubeconfigPath,
-		"rollout", "status", "deployment/podinfo", "--timeout=5m")
 }
