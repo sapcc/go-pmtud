@@ -18,6 +18,7 @@ type Cluster struct {
 	KubeconfigPath string
 	Client         client.Client
 	Workers        []string
+	ControlPlane   string
 }
 
 type Lab struct {

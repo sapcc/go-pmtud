@@ -20,6 +20,30 @@ import (
 	"github.com/sapcc/go-pmtud/api/v1alpha1"
 )
 
+func parseNodeLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func controlPlaneContainer(clusterName string) string {
+	out, err := exec.Command("docker", "ps",
+		"--filter", "label=io.x-k8s.kind.cluster="+clusterName,
+		"--filter", "label=io.x-k8s.kind.role=control-plane",
+		"--format", "{{.Names}}").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	if names := parseNodeLines(string(out)); len(names) > 0 {
+		return names[0]
+	}
+	return ""
+}
+
 func createCluster(ctx context.Context, name, configPath string) (*Cluster, error) {
 	p := cluster.NewProvider()
 
@@ -77,7 +101,13 @@ load_kubeconfig:
 	// Get worker nodes
 	workers := workerContainers(name)
 
-	return &Cluster{Name: name, KubeconfigPath: kcPath, Client: cl, Workers: workers}, nil
+	return &Cluster{
+		Name:           name,
+		KubeconfigPath: kcPath,
+		Client:         cl,
+		Workers:        workers,
+		ControlPlane:   controlPlaneContainer(name),
+	}, nil
 }
 
 func deleteCluster(ctx context.Context, name string) error {
@@ -93,13 +123,7 @@ func workerContainers(clusterName string) []string {
 	if err != nil {
 		return nil
 	}
-	var workers []string
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line != "" {
-			workers = append(workers, line)
-		}
-	}
-	return workers
+	return parseNodeLines(string(out))
 }
 
 func clusterContainers(clusterName string) []string {

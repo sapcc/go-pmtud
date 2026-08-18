@@ -5,32 +5,14 @@
 
 package lab
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestParseWorkerContainerName(t *testing.T) {
-	// Test the worker container name parsing (no docker needed)
-	output := "pmtud-cluster-a-worker\npmtud-cluster-a-worker2"
-	workers := parseWorkerLines(output)
-	if len(workers) != 2 {
-		t.Fatalf("parseWorkerLines returned %d workers, want 2", len(workers))
+func TestParseNodeLines(t *testing.T) {
+	got := parseNodeLines("pmtud-worker\npmtud-worker2\n")
+	if len(got) != 2 || got[0] != "pmtud-worker" || got[1] != "pmtud-worker2" {
+		t.Fatalf("parseNodeLines = %v, want [pmtud-worker pmtud-worker2]", got)
 	}
-	if workers[0] != "pmtud-cluster-a-worker" {
-		t.Errorf("first worker = %q, want pmtud-cluster-a-worker", workers[0])
+	if len(parseNodeLines("  \n")) != 0 {
+		t.Errorf("parseNodeLines on blank input should be empty")
 	}
-	if workers[1] != "pmtud-cluster-a-worker2" {
-		t.Errorf("second worker = %q, want pmtud-cluster-a-worker2", workers[1])
-	}
-}
-
-func parseWorkerLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
 }
