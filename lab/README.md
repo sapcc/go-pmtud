@@ -42,6 +42,16 @@ Traffic from cluster-a → cluster-b traverses the router via the transit networ
 Packets >1500 bytes with DF bit set trigger ICMP type 3 code 4 (fragmentation needed).
 go-pmtud captures these via NFLOG and replicates to peer nodes via UDP port 4390.
 
+## Why Two Clusters?
+
+The two Kind clusters mimic a **multi-availability-zone (AZ) scenario**: nodes spread across AZs with in-AZ MTU 9000 (fast) but cross-AZ links capped at MTU 1500 (real-world networking constraint).
+
+**Why not two worker nodes in one cluster?** Kind pins all nodes of a single cluster to one docker bridge, guaranteeing full node↔node L2 reachability. You cannot tell Kind "put worker1 on network-a, worker2 on network-b" — it will add both to the same bridge. So to place node groups across **separate L2 domains joined only by an L3 router**, you need two clusters.
+
+**What actually cuts L2:** The three docker networks (`net-a`, `net-b`, `transit`) are separate L2 domains. The router sits on all three and provides the only L3 path between them. Its `net-b` interface is clamped to MTU 1500, creating the bottleneck that generates ICMP fragmentation-needed.
+
+**The relay test:** Each cluster has 2 workers. The originating worker catches the ICMP natively; peers in the same cluster rely on go-pmtud's relay (UDP or CRD) to propagate the PMTU constraint — proving the transport works end to end without requiring L2 reachability.
+
 ## Prerequisites
 
 - Docker (or Docker Desktop)

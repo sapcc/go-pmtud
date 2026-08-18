@@ -13,7 +13,7 @@ import (
 
 func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
 	// Build image
-	repoRoot := os.Getenv("PWD")
+	repoRoot := os.Getenv("REPO_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}
@@ -37,12 +37,12 @@ func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
 		}
 
 		// Apply RBAC
-		if err := c.applyFile(ctx, "lab/manifests/rbac.yaml"); err != nil {
+		if err := c.applyFile(ctx, repoRoot+"/lab/manifests/rbac.yaml"); err != nil {
 			return fmt.Errorf("apply RBAC to %s: %w", c.Name, err)
 		}
 
 		// Apply daemonset (inject backend flag)
-		if err := c.applyDaemonSet(ctx, "lab/manifests/pmtud-daemonset.yaml", backend); err != nil {
+		if err := c.applyDaemonSet(ctx, repoRoot+"/lab/manifests/pmtud-daemonset.yaml", backend); err != nil {
 			return fmt.Errorf("apply daemonset to %s: %w", c.Name, err)
 		}
 
@@ -61,6 +61,13 @@ func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
 }
 
 func (l *Lab) deployWorkload(ctx context.Context) error {
-	// TODO: deploy podinfo to cluster-b, generate 1MB test file
-	return nil
+	repoRoot := os.Getenv("REPO_ROOT")
+	if repoRoot == "" {
+		repoRoot = "."
+	}
+	if err := l.ClusterB.applyFile(ctx, repoRoot+"/lab/manifests/podinfo.yaml"); err != nil {
+		return fmt.Errorf("apply podinfo: %w", err)
+	}
+	return run("kubectl", "--kubeconfig", l.ClusterB.KubeconfigPath,
+		"rollout", "status", "deployment/podinfo", "--timeout=5m")
 }

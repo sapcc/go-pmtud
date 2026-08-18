@@ -8,7 +8,7 @@ package lab
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -46,7 +46,7 @@ load_kubeconfig:
 	}
 
 	// Write to isolated temp file
-	f, err := ioutil.TempFile("", "kubeconfig-"+name+"-*")
+	f, err := os.CreateTemp("", "kubeconfig-"+name+"-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp kubeconfig: %w", err)
 	}
@@ -102,38 +102,49 @@ func workerContainers(clusterName string) []string {
 	return workers
 }
 
+func clusterContainers(clusterName string) []string {
+	out, err := exec.Command("docker", "ps",
+		"--filter", "label=io.x-k8s.kind.cluster="+clusterName,
+		"--format", "{{.Names}}").CombinedOutput()
+	if err != nil {
+		return nil
+	}
+	var nodes []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			nodes = append(nodes, line)
+		}
+	}
+	return nodes
+}
+
 func (c *Cluster) applyFile(ctx context.Context, path string) error {
-	// Read YAML file
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read file %s: %w", path, err)
-	}
-
-	// Decode all objects from YAML using UniversalDeserializer
-	decoder := scheme.Codecs.UniversalDeserializer()
-	obj, _, err := decoder.Decode(data, nil, nil)
-	if err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
-	}
-
-	// Apply via Server-Side Apply (SSA)
-	if err := c.Client.Patch(ctx, obj.(client.Object), client.Apply, &client.PatchOptions{
-		FieldManager: "go-pmtud-e2e",
-		Force:        boolPtr(true),
-	}); err != nil {
-		return fmt.Errorf("apply %s: %w", path, err)
-	}
-	return nil
+	return run("kubectl", "--kubeconfig", c.KubeconfigPath, "apply", "-f", path)
 }
 
 func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend string) error {
-	// TODO: read YAML, unmarshal daemonset, inject --relay-backend flag, apply
-	return nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read daemonset: %w", err)
+	}
+	// Inject literal backend value so the k8s spec shows --relay-backend=<backend>
+	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", backend)
+	f, err := os.CreateTemp("", "daemonset-*.yaml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(patched); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+	return run("kubectl", "--kubeconfig", c.KubeconfigPath, "apply", "-n", "kube-system", "-f", f.Name())
 }
 
 func (c *Cluster) waitRollout(ctx context.Context, ns, name string) error {
-	// TODO: implement via kubectl rollout status or client-go watch
-	return nil
+	return run("kubectl", "--kubeconfig", c.KubeconfigPath,
+		"rollout", "status", "ds/"+name, "-n", ns, "--timeout=5m")
 }
 
 // boolPtr is a helper to return a pointer to a bool value

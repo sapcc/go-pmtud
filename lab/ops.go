@@ -6,8 +6,10 @@
 package lab
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -18,10 +20,10 @@ func (l *Lab) GenerateTraffic(ctx context.Context) error {
 		return fmt.Errorf("no cluster-a workers")
 	}
 	worker := l.ClusterA.Workers[0]
-
-	// curl from cluster-a worker to podinfo on cluster-b (1MB file)
-	_, err := dockerExec(worker, "curl", "-s", "-o", "/dev/null",
-		fmt.Sprintf("http://%s:30080/testfile", l.DestIP))
+	// POST 2100 ASCII bytes so curl sends a body > 1500 bytes through the MTU bottleneck.
+	// null bytes from /dev/zero cause curl -d to send an empty body; use yes+head for ASCII.
+	_, err := dockerExec(worker, "sh", "-c",
+		fmt.Sprintf("yes A | head -c 2100 | curl -s -o /dev/null --data-binary @- http://%s:30080/echo", l.DestIP))
 	return err
 }
 
@@ -54,8 +56,8 @@ func (l *Lab) PMTUTo(node, dst string) (int, error) {
 }
 
 func (l *Lab) FlushRouteCache(node string) error {
-	_, err := dockerExec(node, "ip", "route", "flush", "cache")
-	return err
+	dockerExec(node, "ip", "route", "flush", "cache") // best-effort: no-op on kernels without route cache
+	return nil
 }
 
 type ICMPCapture struct {
@@ -66,9 +68,25 @@ type ICMPCapture struct {
 func (l *Lab) CaptureICMPAsync(ctx context.Context, dur time.Duration) *ICMPCapture {
 	cap := &ICMPCapture{Count: 0, Done: make(chan struct{})}
 	go func() {
-		// TODO: start tcpdump on router, count packets matching ICMP type 3/4
+		defer close(cap.Done)
+		cmd := exec.Command("docker", "exec", l.Router,
+			"sh", "-c", "tcpdump -i any -n -l 'icmp[0]=3 and icmp[1]=4' 2>/dev/null")
+		pipe, err := cmd.StdoutPipe()
+		if err != nil || cmd.Start() != nil {
+			time.Sleep(dur)
+			return
+		}
+		scanned := make(chan struct{})
+		go func() {
+			defer close(scanned)
+			scanner := bufio.NewScanner(pipe)
+			for scanner.Scan() {
+				cap.Count++ // benign race: only grows, Eventually polls after writes settle
+			}
+		}()
 		time.Sleep(dur)
-		close(cap.Done)
+		cmd.Process.Kill()
+		<-scanned
 	}()
 	return cap
 }

@@ -8,19 +8,28 @@ package lab
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 )
 
 func createRouter(ctx context.Context) (string, error) {
 	name := "pmtud-router"
 
-	// check if running (idempotent)
-	if err := run("docker", "ps", "-q", "-f", "name=^"+name+"$"); err == nil {
-		return name, nil // exists
+	// check if running (idempotent): docker ps exits 0 even with no match, check output
+	out, _ := exec.Command("docker", "ps", "-q", "-f", "name=^"+name+"$").Output()
+	if strings.TrimSpace(string(out)) != "" {
+		return name, nil // exists and running
+	}
+
+	repoRoot := os.Getenv("REPO_ROOT")
+	if repoRoot == "" {
+		repoRoot = "."
 	}
 
 	// build router image
-	if err := run("docker", "build", "-t", "pmtud-router:local", "lab/configs/router/"); err != nil {
+	if err := run("docker", "build", "-t", "pmtud-router:local", repoRoot+"/lab/configs/router/"); err != nil {
 		return "", fmt.Errorf("build router image: %w", err)
 	}
 

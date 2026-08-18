@@ -41,3 +41,17 @@ func ifaceByIP(container, ip string) (string, error) {
 	}
 	return "", fmt.Errorf("interface with %s not found on %s", ip, container)
 }
+
+func ipOnSubnet(container, prefix string) (string, error) {
+	out, err := dockerExec(container, "ip", "-o", "addr", "show")
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 4 && strings.HasPrefix(fields[3], prefix) {
+			return strings.SplitN(fields[3], "/", 2)[0], nil
+		}
+	}
+	return "", fmt.Errorf("no IP with prefix %s on %s", prefix, container)
+}

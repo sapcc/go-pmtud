@@ -48,6 +48,27 @@ func Provision(ctx context.Context) (*Lab, error) {
 		return nil, err
 	}
 
+	// Connect all cluster nodes to their dedicated networks so that the
+	// gateway IPs (172.30.0.10 / 172.31.0.10) are reachable from workers.
+	for _, node := range clusterContainers("pmtud-cluster-a") {
+		if err := run("docker", "network", "connect", "pmtud-net-a", node); err != nil {
+			return nil, fmt.Errorf("connect %s to pmtud-net-a: %w", node, err)
+		}
+	}
+	for _, node := range clusterContainers("pmtud-cluster-b") {
+		if err := run("docker", "network", "connect", "pmtud-net-b", node); err != nil {
+			return nil, fmt.Errorf("connect %s to pmtud-net-b: %w", node, err)
+		}
+	}
+
+	// Install curl on cluster-a workers for traffic generation
+	for _, w := range a.Workers {
+		if err := run("docker", "exec", w, "sh", "-c",
+			"apt-get update -qq && apt-get install -y --no-install-recommends curl"); err != nil {
+			return nil, fmt.Errorf("install curl on %s: %w", w, err)
+		}
+	}
+
 	r, err := createRouter(ctx)
 	if err != nil {
 		return nil, err
@@ -62,13 +83,14 @@ func Provision(ctx context.Context) (*Lab, error) {
 		return nil, err
 	}
 
-	// infer dest IP from cluster-b (first worker's 172.31.x.x IP)
+	// Discover cluster-b worker IP on pmtud-net-b for traffic generation
 	if len(b.Workers) > 0 {
-		out, _ := dockerExec(b.Workers[0], "ip", "-o", "addr", "show")
-		// parse 172.31.x.x from output
-		_ = out // placeholder; full parse deferred
-		l.DestIP = "172.31.0.2" // placeholder; full parse deferred
-	}
+		ip, err := ipOnSubnet(b.Workers[0], "172.31.")
+		if err != nil {
+			return nil, fmt.Errorf("discover cluster-b dest IP: %w", err)
+		}
+		l.DestIP = ip
+	} 
 
 	return l, nil
 }
