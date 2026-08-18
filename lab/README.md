@@ -11,46 +11,39 @@ A reproducible Kind-based lab for testing go-pmtud UDP replication across L3 bou
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          Docker Host                                    │
-│                                                                         │
-│  ┌─────────────────────┐         ┌─────────────────────┐                │
-│  │  pmtud-net-a        │         │  pmtud-net-b        │                │
-│  │  172.30.0.0/16      │         │  172.31.0.0/16      │                │
-│  │  MTU: 9000          │         │  MTU: 9000          │                │
-│  │                     │         │                     │                │
-│  │  ┌───────────────┐  │         │  ┌───────────────┐  │                │
-│  │  │ pmtud-cluster-a│  │        │  │ pmtud-cluster-b│ │                │
-│  │  │ (1 CP + 2 W)  │  │         │  │ (1 CP + 2 W)  │  │                │
-│  │  └───────────────┘  │         │  └───────────────┘  │                │
-│  └──────────┬──────────┘         └──────────┬──────────┘                │
-│             │                               │                           │
-│             │    ┌───────────────────┐      │                           │
-│             └────┤  pmtud-router     ├──────┘                           │
-│                  │  (Alpine + fwd)   │                                  │
-│                  └────────┬──────────┘                                  │
-│                           │                                             │
-│                  ┌────────┴──────────┐                                  │
-│                  │  pmtud-transit    │                                  │
-│                  │  172.32.0.0/24    │                                  │
-│                  │  MTU: 1500        │                                  │
-│                  └──────────────────-┘                                  │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│              Docker Host / Kubernetes Cluster           │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  pmtud-cluster (1 CP + 2 Workers)                │  │
+│  │  172.30.0.0/16, MTU: 9000                        │  │
+│  │                                                  │  │
+│  │  ┌──────────────┐  ┌──────────────────────────┐ │  │
+│  │  │  Control     │  │                          │ │  │
+│  │  │  Plane Node  │  │  (Acts as relay hop)     │ │  │
+│  │  │  MTU: 1280   │  │  MTU: 1280 via dummy net │ │  │
+│  │  └──────┬───────┘  │                          │ │  │
+│  │         │          └──────────────────────────┘ │  │
+│  │  ┌──────▼──────────┐  ┌──────────────────────┐ │  │
+│  │  │  Worker-1      │  │  Worker-2            │ │  │
+│  │  │  MTU: 9000     │  │  MTU: 9000           │ │  │
+│  │  └────────────────┘  └──────────────────────┘ │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Traffic from cluster-a → cluster-b traverses the router via the transit network (MTU 1500).
-Packets >1500 bytes with DF bit set trigger ICMP type 3 code 4 (fragmentation needed).
-go-pmtud captures these via NFLOG and replicates to peer nodes via UDP port 4390.
+Single-cluster topology with control-plane as the relay hop. Packets exceeding the control-plane's MTU (1280) with DF bit set trigger ICMP type 3 code 4 (fragmentation needed).
+go-pmtud captures these via NFLOG and replicates to peer nodes via UDP port 4390 or Kubernetes CRD.
 
-## Why Two Clusters?
+## How It Works
 
-The two Kind clusters mimic a **multi-availability-zone (AZ) scenario**: nodes spread across AZs with in-AZ MTU 9000 (fast) but cross-AZ links capped at MTU 1500 (real-world networking constraint).
+The lab simulates a **cross-zone L3 boundary** within a single cluster:
 
-**Why not two worker nodes in one cluster?** Kind pins all nodes of a single cluster to one docker bridge, guaranteeing full node↔node L2 reachability. You cannot tell Kind "put worker1 on network-a, worker2 on network-b" — it will add both to the same bridge. So to place node groups across **separate L2 domains joined only by an L3 router**, you need two clusters.
-
-**What actually cuts L2:** The three docker networks (`net-a`, `net-b`, `transit`) are separate L2 domains. The router sits on all three and provides the only L3 path between them. Its `net-b` interface is clamped to MTU 1500, creating the bottleneck that generates ICMP fragmentation-needed.
-
-**The relay test:** Each cluster has 2 workers. The originating worker catches the ICMP natively; peers in the same cluster rely on go-pmtud's relay (UDP or CRD) to propagate the PMTU constraint — proving the transport works end to end without requiring L2 reachability.
+- **Control-plane node:** Simulates a relay hop with reduced MTU (1280) via a dummy network interface
+- **Worker nodes:** Full MTU (9000) for intra-zone communication
+- **Trigger:** Packets from workers destined through the control-plane that exceed 1280 bytes with DF bit set prompt ICMP fragmentation-needed
+- **Native capture:** The originating worker receives the ICMP directly via NFLOG
+- **Relay test:** Peer workers rely on go-pmtud's relay (UDP or CRD) to propagate the PMTU constraint, proving the transport works end-to-end without L2 reachability
 
 ## Prerequisites
 
@@ -112,17 +105,18 @@ LAB_REUSE=1 make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
 | `observe-router` | tcpdump ICMP packets on router |
 | `status` | Show lab component status |
 
-## How It Works
+## Simulating the MTU Boundary
 
-1. **Setup** creates two Docker networks (MTU 9000) and a transit network (MTU 1500)
-2. Two Kind clusters are created, one per network
-3. A router container bridges the networks — its transit interface has MTU 1500
-4. Static routes on Kind nodes direct cross-cluster traffic through the router
-5. **Deploy** loads locally-built go-pmtud images and applies DaemonSet + podinfo
-6. **Test** generates large TCP transfers (DF set) that exceed 1500 bytes
-7. The router sends ICMP fragmentation-needed back to the source
-8. go-pmtud captures via NFLOG, replicates to peers via UDP (or CRD)
-9. Peers inject via TUN device → kernel PMTU cache updated
+The lab uses the control-plane node as a relay hop with reduced MTU. Setup:
+
+1. **Provision** creates a single Kind cluster with 1 control-plane and 2 workers
+2. On the control-plane, a dummy interface (`pmtudlab0`, MTU 1280) simulates the L3 boundary
+3. Routes on worker nodes direct traffic destined for external IPs through the control-plane
+4. **Deploy** loads locally-built go-pmtud images and applies DaemonSet + CRD/RBAC
+5. **Test** uses `ping -M do -s 1400` or sustained transfers to generate packets exceeding the control-plane's MTU
+6. Control-plane interface sends ICMP fragmentation-needed back to the source
+7. go-pmtud captures via NFLOG, replicates to peers via UDP (or CRD)
+8. Peers inject via TUN device → kernel PMTU cache updated
 
 ## Relay Backends
 
@@ -157,6 +151,16 @@ In large clusters, PMTU cache coherence across 4+ separate namespaces with disti
 - Higher latency than UDP (API round-trip vs. L3 UDP)
 - API server becomes a throughput bottleneck under high-loss scenarios
 - Not suitable for non-Kubernetes environments
+
+## Real-Cluster Validation
+
+Beyond the Kind lab, go-pmtud can be validated on real Kubernetes clusters with actual MTU boundaries (cross-zone links, node MTU asymmetries, etc.). See [RUNBOOK-real-cluster.md](RUNBOOK-real-cluster.md) for step-by-step procedures covering:
+
+- Prerequisites (≥2 nodes, MTU boundary or ability to create one)
+- Deployment (image build, RBAC, CRD, DaemonSet)
+- Trigger (existing or simulated MTU boundary)
+- Observation (logs, metrics, PMTUNodeRelay objects)
+- Cleanup
 
 ## Known Limitations
 
