@@ -2,16 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 .PHONY: e2e e2e-reuse e2e-keep \
-        observe-router observe-node observe-replication \
+        observe-node observe-replication \
         down status help
 
 SCRIPTS := scripts
 GINKGO_FLAGS ?=
 
 ## Go e2e test suite
-
-observe-router: ## tcpdump ICMP frag-needed on router
-	@$(SCRIPTS)/observe.sh router
 
 observe-node: ## tcpdump ICMP frag-needed on cluster node (CLUSTER=a|b NODE=worker|worker2)
 	@$(SCRIPTS)/observe.sh node
@@ -26,11 +23,8 @@ status: ## Show lab component status
 
 ## Cleanup
 
-down: ## Remove lab (clusters, networks, router)
-	kind delete cluster --name pmtud-cluster-a 2>/dev/null || true
-	kind delete cluster --name pmtud-cluster-b 2>/dev/null || true
-	docker rm -f pmtud-router 2>/dev/null || true
-	docker network rm pmtud-net-a pmtud-net-b pmtud-transit 2>/dev/null || true
+down: ## Remove lab (single kind cluster)
+	kind delete cluster --name pmtud 2>/dev/null || true
 
 ## Go e2e suite
 
