@@ -58,7 +58,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: RELAY_BACKEND
-              value: "crd"
+              value: "$(RELAY_BACKEND)"
           securityContext:
             privileged: true
             capabilities:

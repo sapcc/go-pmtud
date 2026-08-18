@@ -20,22 +20,42 @@ var _ = ginkgo.Describe("PMTU replication", func() {
 			})
 
 			ginkgo.It("replicates PMTU to peer nodes", func(ctx ginkgo.SpecContext) {
-				for _, w := range testLab.Cluster.Workers {
-					gomega.Expect(testLab.FlushRouteCache(w)).To(gomega.Succeed())
+				workers := testLab.Cluster.Workers
+				originator := workers[0]
+
+				gomega.Expect(testLab.FlushRouteCache(originator)).To(gomega.Succeed())
+
+				// baseline peer recv counters before generating traffic
+				base := make(map[string]int, len(workers))
+				for _, w := range workers[1:] {
+					n, err := testLab.RecvPackets(w)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					base[w] = n
 				}
 
 				// ping errors unless the hop returned a frag-needed
 				gomega.Expect(testLab.GenerateTraffic(ctx)).To(gomega.Succeed())
 
-				// originator converges natively; peers converge via the relay
-				for _, w := range testLab.Cluster.Workers {
+				// originator converges natively (real kernel PMTU apply)
+				gomega.Eventually(func() (int, error) {
+					return testLab.PMTUTo(originator, testLab.BlackholeIP)
+				}).
+					WithTimeout(30 * time.Second).
+					WithPolling(2 * time.Second).
+					Should(gomega.Equal(1280),
+						"originator %s must converge natively to 1280 (%s)", originator, backend)
+
+				// peers: replication delivered — the daemon received and injected
+				// the relayed frag-needed, so recv_packets_total strictly increases.
+				for _, w := range workers[1:] {
+					w := w
 					gomega.Eventually(func() (int, error) {
-						return testLab.PMTUTo(w, testLab.BlackholeIP)
+						return testLab.RecvPackets(w)
 					}).
 						WithTimeout(30 * time.Second).
 						WithPolling(2 * time.Second).
-						Should(gomega.Equal(1280),
-							"worker %s PMTU must converge to 1280 via %s relay", w, backend)
+						Should(gomega.BeNumerically(">", base[w]),
+							"peer %s must receive a relayed frag-needed via %s", w, backend)
 				}
 			})
 		})

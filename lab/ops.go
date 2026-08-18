@@ -9,7 +9,14 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
+	"strings"
 )
+
+// metricsPort is the daemon's Prometheus endpoint (config default; the
+// DaemonSet does not override --metrics_port). The daemon runs hostNetwork, so
+// the endpoint is reachable on the node's host netns.
+const metricsPort = "30040"
 
 // GenerateTraffic sends a DF-set ping larger than the hop MTU from worker-A.
 // The hop returns an ICMP frag-needed; ping exits non-zero (blackhole), so the
@@ -82,4 +89,35 @@ func indexOf(s, sub string) int {
 func (l *Lab) FlushRouteCache(node string) error {
 	dockerExec(node, "ip", "route", "flush", "cache") // best-effort; no-op on kernels without route cache
 	return nil
+}
+
+// RecvPackets returns the summed go_pmtud_recv_packets_total counter scraped
+// from the daemon on the node's host netns. On a peer this counts only
+// relay-injected packets — the peer never captures a frag-needed natively (only
+// worker-A routes through the hop) — so an increase after GenerateTraffic proves
+// a replicated frag-needed was delivered and injected on that peer.
+func (l *Lab) RecvPackets(node string) (int, error) {
+	out, err := dockerExec(node, "curl", "-s", "http://127.0.0.1:"+metricsPort+"/metrics")
+	if err != nil {
+		return 0, fmt.Errorf("scrape metrics on %s: %w", node, err)
+	}
+	return sumMetric(out, "go_pmtud_recv_packets_total"), nil
+}
+
+// sumMetric sums the values of all non-comment samples of a Prometheus metric.
+func sumMetric(out, name string) int {
+	total := 0
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) == 0 || line[0] == '#' || !strings.HasPrefix(line, name) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if v, err := strconv.ParseFloat(fields[len(fields)-1], 64); err == nil {
+			total += int(v)
+		}
+	}
+	return total
 }

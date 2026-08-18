@@ -20,7 +20,7 @@ func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
 		return fmt.Errorf("build go-pmtud image: %w", err)
 	}
 
-	c := l.Cluster
+	c := l.Cluster 
 	if err := run("kind", "load", "docker-image", "go-pmtud:local", "--name", c.Name); err != nil {
 		return fmt.Errorf("load image to %s: %w", c.Name, err)
 	}

@@ -35,6 +35,20 @@ func configureHop(ctx context.Context, l *Lab) error {
 	if _, err := dockerExec(worker, "ip", "route", "replace", HopSubnet, "via", cpIP); err != nil {
 		return fmt.Errorf("route worker-A -> hop subnet: %w", err)
 	}
+
+	// The hop must source its ICMP frag-needed from a NON-node address. Left to
+	// the default route, the error sources from the CP's node InternalIP, which
+	// the reconciler has added to worker-A's PeerList — so the daemon's
+	// loop-prevention drops it as peer-originated and never relays. Pin the
+	// return route to worker-A so the error sources from HopIP (the low-MTU
+	// router address, per RFC 1191). eth0 is the inter-node iface on kind nodes.
+	workerAIP, err := containerIP(worker)
+	if err != nil {
+		return err
+	}
+	if _, err := dockerExec(cp, "ip", "route", "replace", workerAIP+"/32", "dev", "eth0", "src", HopIP); err != nil {
+		return fmt.Errorf("pin hop return route to worker-A: %w", err)
+	}
 	return nil
 }
 

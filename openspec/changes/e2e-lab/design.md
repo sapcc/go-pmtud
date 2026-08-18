@@ -63,10 +63,26 @@ is a plain node with a `dummy` interface, not a router container.
 Flow: `worker-A → control-plane` fits the shared Kind bridge (MTU 1500);
 `control-plane → pmtudlab0` (MTU 1280) with the DF bit set is too big, so the
 control-plane emits an ICMP frag-needed (mtu 1280) back to worker-A. worker-A's
-NFLOG rule captures it and relays to peers; worker-B injects and its route cache
-for `10.99.0.2` converges to 1280. worker-A converges natively (it received the
-frag-needed directly). Asserting **worker-B** proves replication reached a
-non-originating peer.
+NFLOG rule captures it, converges its own route cache natively, and relays to
+peers; each peer's daemon injects the frag-needed into its `pmtud0` TUN.
+
+**What the peer assertion proves.** Asserting a *route-cache* PMTU exception on
+the peer is not achievable in this single-cluster lab: the relayed frag-needed
+is addressed to worker-A's unique node IP (not local on the peer, so the peer
+kernel never hands it to `icmp_rcv`), and its inner packet is an ICMP echo the
+peer never originated. Production converges only because the flow uses a shared
+anycast/ECMP source IP local on every node. The lab therefore asserts that
+replication **reached** the peer — the peer daemon's `go_pmtud_recv_packets_total`
+counter increments (it received and injected the relayed packet) — and asserts
+native route-cache convergence only on the originator. See
+`debug-findings.md` for the kernel-counter evidence.
+
+**Hop return route (loop-prevention interaction).** The reconciler adds every
+other node's InternalIP to each node's PeerList, so the control-plane is a peer
+of worker-A. If the hop's frag-needed sources from the CP node IP, worker-A's
+daemon drops it as peer-originated. `configureHop` therefore pins the CP's
+return route to worker-A with `src <HopIP>`, so the error sources from the
+non-node hop address (per RFC 1191) and the relay fires.
 
 ### Packet-size arithmetic
 
@@ -104,7 +120,7 @@ sidesteps docker networking entirely and works on Linux and macOS alike.
 | `cluster.go` | Kind Go API create/delete; isolated temp kubeconfig; `controller-runtime` client with `v1alpha1` scheme; worker + control-plane container discovery via `docker ps --filter label=io.x-k8s.kind.role=...`. |
 | `routes.go` | Hop setup on the control-plane (`ip_forward`, `pmtudlab0` @1280 with `veth` fallback, address) and the single route on worker-A. |
 | `deploy.go` | `DeployBackend(backend)`: build image, `kind load`, apply RBAC + daemonset (inject `--relay-backend` + `POD_NAMESPACE`) + CRD (crd backend), `waitRollout`. |
-| `ops.go` | `GenerateTraffic`: `ping -M do -s 1400 -c3 -W2 <BlackholeIP>` on worker-A, success on the `mtu = 1280`/`Frag needed` signal (ignore exit code). `PMTUTo(node,dst)` parses `ip route get`. `FlushRouteCache(node)`. |
+| `ops.go` | `GenerateTraffic`: `ping -M do -s 1400 -c3 -W2 <BlackholeIP>` on worker-A, success on the `mtu = 1280`/`Frag needed` signal (ignore exit code). `PMTUTo(node,dst)` parses `ip route get`. `RecvPackets(node)` sums `go_pmtud_recv_packets_total` scraped from the node daemon. `FlushRouteCache(node)`. |
 | `exec.go` | `run()` (stream stdout/stderr) + `dockerExec()` (CombinedOutput, error includes stderr) + `ifaceByIP()` / `ipOnSubnet()` helpers. |
 | `cmd/labctl` | Thin CLI (normal build, no tag) exposing the lifecycle verbs for manual use. |
 
@@ -126,15 +142,25 @@ is established.
 
 ```go
 It("replicates PMTU to peer nodes", func(ctx SpecContext) {
-    for _, w := range testLab.Cluster.Workers {
-        Expect(testLab.FlushRouteCache(w)).To(Succeed())
+    originator := testLab.Cluster.Workers[0]
+    Expect(testLab.FlushRouteCache(originator)).To(Succeed())
+
+    base := map[string]int{} // peer recv counters before traffic
+    for _, w := range testLab.Cluster.Workers[1:] {
+        n, err := testLab.RecvPackets(w); Expect(err).NotTo(HaveOccurred())
+        base[w] = n
     }
     Expect(testLab.GenerateTraffic(ctx)).To(Succeed()) // errors unless ping saw frag-needed
 
-    for _, w := range testLab.Cluster.Workers { // originator (native) + peers (relay)
-        Eventually(func() (int, error) { return testLab.PMTUTo(w, testLab.BlackholeIP) }).
+    // originator converges natively (real kernel route-cache apply)
+    Eventually(func() (int, error) { return testLab.PMTUTo(originator, testLab.BlackholeIP) }).
+        WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Equal(1280))
+
+    // peers: replication delivered — recv_packets_total strictly increases
+    for _, w := range testLab.Cluster.Workers[1:] {
+        Eventually(func() (int, error) { return testLab.RecvPackets(w) }).
             WithTimeout(30 * time.Second).WithPolling(2 * time.Second).
-            Should(Equal(1280), "worker %s PMTU must converge via %s relay", w, backend)
+            Should(BeNumerically(">", base[w]), "peer %s must receive a relayed frag-needed via %s", w, backend)
     }
 })
 ```
@@ -184,8 +210,10 @@ Referenced from `lab/README.md`.
 - **`dummy` module availability** — handled by the `veth` fallback.
 - **`ping` availability in Kind nodes** — install `iputils-ping` on worker-A only
   if missing (one node), or use a raw-socket sender; decided in implementation.
-- **Control-plane running the daemon** — tolerations (`operator: Exists`) mean the
-  daemon also runs there; harmless, the CP only plays the hop role (it originates
-  the ICMP, never receives/injects one).
+- **Control-plane running the daemon** — tolerations (`operator: Exists`) mean
+  the daemon also runs there. The CP plays the hop role, but its node IP is in
+  worker-A's PeerList, so a frag-needed sourced from the CP node IP is dropped
+  by worker-A's loop-prevention. `configureHop` pins the return route with
+  `src <HopIP>` so the error sources from the non-node hop address instead.
 - **Kind Go API version pin** — must match the `kind` binary contract; pin in
   `go.mod` and document the compatible node image.
