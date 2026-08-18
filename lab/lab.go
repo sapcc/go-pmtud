@@ -37,7 +37,7 @@ type Lab struct {
 }
 
 func Provision(ctx context.Context) (*Lab, error) {
-	repoRoot := os.Getenv("LAB_ROOT")
+	repoRoot := os.Getenv("REPO_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}

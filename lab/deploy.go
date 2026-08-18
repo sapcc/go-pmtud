@@ -12,7 +12,7 @@ import (
 )
 
 func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
-	repoRoot := os.Getenv("LAB_ROOT")
+	repoRoot := os.Getenv("REPO_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}

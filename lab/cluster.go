@@ -44,7 +44,7 @@ func controlPlaneContainer(clusterName string) string {
 	return ""
 }
 
-func createCluster(ctx context.Context, name, configPath string) (*Cluster, error) {
+func createCluster(_ context.Context, name, configPath string) (*Cluster, error) {
 	p := cluster.NewProvider()
 
 	// Idempotent: check if exists
@@ -74,12 +74,11 @@ load_kubeconfig:
 	if err != nil {
 		return nil, fmt.Errorf("create temp kubeconfig: %w", err)
 	}
+	defer f.Close()
 	if _, err := f.Write([]byte(kcfg)); err != nil {
-		f.Close()
 		return nil, fmt.Errorf("write kubeconfig: %w", err)
 	}
 	kcPath := f.Name()
-	f.Close()
 
 	// Build client-go client from kubeconfig
 	cfg, err := clientcmd.BuildConfigFromFlags("", kcPath)
@@ -110,7 +109,7 @@ load_kubeconfig:
 	}, nil
 }
 
-func deleteCluster(ctx context.Context, name string) error {
+func deleteCluster(_ context.Context, name string) error {
 	p := cluster.NewProvider()
 	return p.Delete(name, "")
 }
@@ -124,22 +123,6 @@ func workerContainers(clusterName string) []string {
 		return nil
 	}
 	return parseNodeLines(string(out))
-}
-
-func clusterContainers(clusterName string) []string {
-	out, err := exec.Command("docker", "ps",
-		"--filter", "label=io.x-k8s.kind.cluster="+clusterName,
-		"--format", "{{.Names}}").CombinedOutput()
-	if err != nil {
-		return nil
-	}
-	var nodes []string
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line != "" {
-			nodes = append(nodes, line)
-		}
-	}
-	return nodes
 }
 
 func (c *Cluster) applyFile(ctx context.Context, path string) error {
@@ -169,9 +152,4 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 func (c *Cluster) waitRollout(ctx context.Context, ns, name string) error {
 	return run("kubectl", "--kubeconfig", c.KubeconfigPath,
 		"rollout", "status", "ds/"+name, "-n", ns, "--timeout=5m")
-}
-
-// boolPtr is a helper to return a pointer to a bool value
-func boolPtr(b bool) *bool {
-	return &b
 }
