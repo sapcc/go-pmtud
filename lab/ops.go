@@ -6,25 +6,30 @@
 package lab
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os/exec"
-	"strconv"
-	"strings"
-	"time"
 )
 
+// GenerateTraffic sends a DF-set ping larger than the hop MTU from worker-A.
+// The hop returns an ICMP frag-needed; ping exits non-zero (blackhole), so the
+// reported "mtu = N" line — not the exit code — is the success signal.
 func (l *Lab) GenerateTraffic(ctx context.Context) error {
-	if len(l.ClusterA.Workers) == 0 {
-		return fmt.Errorf("no cluster-a workers")
+	if len(l.Cluster.Workers) == 0 {
+		return fmt.Errorf("no workers")
 	}
-	worker := l.ClusterA.Workers[0]
-	// POST 2100 ASCII bytes so curl sends a body > 1500 bytes through the MTU bottleneck.
-	// null bytes from /dev/zero cause curl -d to send an empty body; use yes+head for ASCII.
-	_, err := dockerExec(worker, "sh", "-c",
-		fmt.Sprintf("yes A | head -c 2100 | curl -s -o /dev/null --data-binary @- http://%s:30080/echo", l.DestIP))
-	return err
+	worker := l.Cluster.Workers[0]
+	b, _ := exec.CommandContext(ctx, "docker", "exec", worker,
+		"ping", "-M", "do", "-s", "1400", "-c", "3", "-W", "2", l.BlackholeIP).CombinedOutput()
+	if parsePingFragNeeded(string(b)) > 0 {
+		return nil
+	}
+	return fmt.Errorf("no ICMP frag-needed in ping output: %s", string(b))
+}
+
+// parsePingFragNeeded returns the MTU reported in a ping frag-needed line, or 0.
+func parsePingFragNeeded(out string) int {
+	return firstIntAfter(out, "mtu")
 }
 
 func (l *Lab) PMTUTo(node, dst string) (int, error) {
@@ -32,61 +37,49 @@ func (l *Lab) PMTUTo(node, dst string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
-	// parse "... mtu 1500 ..." from output
-	fields := strings.Fields(out)
-	for i, field := range fields {
-		if field == "mtu" {
-			// next field is the MTU
-			if i+1 < len(fields) {
-				if m, err := strconv.Atoi(fields[i+1]); err == nil {
-					return m, nil
-				}
-			}
-		}
-		if strings.HasPrefix(field, "mtu") {
-			// "mtu1500" format (no space)
-			mtuStr := strings.TrimPrefix(field, "mtu")
-			if m, err := strconv.Atoi(mtuStr); err == nil {
-				return m, nil
-			}
-		}
+	if m := parseRouteMTU(out); m > 0 {
+		return m, nil
 	}
 	return 0, fmt.Errorf("no MTU in route output: %s", out)
 }
 
-func (l *Lab) FlushRouteCache(node string) error {
-	dockerExec(node, "ip", "route", "flush", "cache") // best-effort: no-op on kernels without route cache
-	return nil
+func parseRouteMTU(out string) int {
+	return firstIntAfter(out, "mtu")
 }
 
-type ICMPCapture struct {
-	Count int
-	Done  chan struct{}
+// firstIntAfter finds `key`, skips non-digits, and returns the first integer run
+// (0 if none). Handles both "mtu 1280" and "mtu=1280".
+func firstIntAfter(s, key string) int {
+	i := indexOf(s, key)
+	if i == -1 {
+		return 0
+	}
+	j := i + len(key)
+	for j < len(s) && (s[j] < '0' || s[j] > '9') {
+		j++
+	}
+	n, started := 0, false
+	for j < len(s) && s[j] >= '0' && s[j] <= '9' {
+		n = n*10 + int(s[j]-'0')
+		j++
+		started = true
+	}
+	if !started {
+		return 0
+	}
+	return n
 }
 
-func (l *Lab) CaptureICMPAsync(ctx context.Context, dur time.Duration) *ICMPCapture {
-	cap := &ICMPCapture{Count: 0, Done: make(chan struct{})}
-	go func() {
-		defer close(cap.Done)
-		cmd := exec.Command("docker", "exec", l.Router,
-			"sh", "-c", "tcpdump -i any -n -l 'icmp[0]=3 and icmp[1]=4' 2>/dev/null")
-		pipe, err := cmd.StdoutPipe()
-		if err != nil || cmd.Start() != nil {
-			time.Sleep(dur)
-			return
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
 		}
-		scanned := make(chan struct{})
-		go func() {
-			defer close(scanned)
-			scanner := bufio.NewScanner(pipe)
-			for scanner.Scan() {
-				cap.Count++ // benign race: only grows, Eventually polls after writes settle
-			}
-		}()
-		time.Sleep(dur)
-		cmd.Process.Kill()
-		<-scanned
-	}()
-	return cap
+	}
+	return -1
+}
+
+func (l *Lab) FlushRouteCache(node string) error {
+	dockerExec(node, "ip", "route", "flush", "cache") // best-effort; no-op on kernels without route cache
+	return nil
 }
