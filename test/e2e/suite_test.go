@@ -6,7 +6,6 @@
 package e2e
 
 import (
-	"os"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -23,11 +22,8 @@ func TestE2E(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func(ctx ginkgo.SpecContext) {
 	var err error
-	if os.Getenv("LAB_REUSE") != "" {
-		testLab, err = lab.Attach(ctx)
-	} else {
-		testLab, err = lab.Provision(ctx)
-	}
+	testLab, err = lab.Provision(ctx)
+
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 

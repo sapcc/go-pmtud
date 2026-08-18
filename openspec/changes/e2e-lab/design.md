@@ -112,7 +112,7 @@ honoured by Docker Desktop's LinuxKit VM, which is why an MTU-mismatch lab built
 on docker networks fails on macOS. Clamping a node-local `dummy`/`veth` interface
 sidesteps docker networking entirely and works on Linux and macOS alike.
 
-## `lab` package (all `//go:build e2e`, except `cmd/labctl`)
+## `lab` package (all `//go:build e2e`)
 
 | File | Responsibility |
 |---|---|
@@ -122,7 +122,6 @@ sidesteps docker networking entirely and works on Linux and macOS alike.
 | `deploy.go` | `DeployBackend(backend)`: build image, `kind load`, apply RBAC + daemonset (inject `--relay-backend` + `POD_NAMESPACE`) + CRD (crd backend), `waitRollout`. |
 | `ops.go` | `GenerateTraffic`: `ping -M do -s 1400 -c3 -W2 <BlackholeIP>` on worker-A, success on the `mtu = 1280`/`Frag needed` signal (ignore exit code). `PMTUTo(node,dst)` parses `ip route get`. `RecvPackets(node)` sums `go_pmtud_recv_packets_total` scraped from the node daemon. `FlushRouteCache(node)`. |
 | `exec.go` | `run()` (stream stdout/stderr) + `dockerExec()` (CombinedOutput, error includes stderr) + `ifaceByIP()` / `ipOnSubnet()` helpers. |
-| `cmd/labctl` | Thin CLI (normal build, no tag) exposing the lifecycle verbs for manual use. |
 
 Kept YAML: `lab/configs/kind-cluster.yaml` (1 control-plane + 2 workers),
 `lab/manifests/pmtud-daemonset.yaml`, `lab/manifests/rbac.yaml`, and the repo-root

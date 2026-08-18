@@ -12,12 +12,12 @@ SPDX-License-Identifier: Apache-2.0
 
 **Architecture:** One Kind cluster (1 control-plane + 2 workers). The control-plane enables forwarding and owns a `dummy` interface (`veth` fallback) clamped to MTU 1280 on a blackhole subnet. A worker pings that subnet with the DF bit set; the control-plane returns a real ICMP frag-needed the worker's NFLOG rule captures; go-pmtud relays it to the peer worker, whose kernel PMTU converges. Asserted via `ip route get`.
 
-**Tech Stack:** Go 1.26, `sigs.k8s.io/kind` (Kind Go API), controller-runtime client, Ginkgo/Gomega, `docker exec` of `ip`/`ping`/`sysctl`. All `lab/` + `test/e2e/` files carry `//go:build e2e` (except `lab/cmd/labctl`).
+**Tech Stack:** Go 1.26, `sigs.k8s.io/kind` (Kind Go API), controller-runtime client, Ginkgo/Gomega, `docker exec` of `ip`/`ping`/`sysctl`. All `lab/` + `test/e2e/` files carry `//go:build e2e`.
 
 ## Global Constraints
 
 - SPDX headers on every new file: `// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company` + `// SPDX-License-Identifier: Apache-2.0` (`#`-comments for YAML).
-- `//go:build e2e` tag on all `lab/` and `test/e2e/` `.go` files except `lab/cmd/labctl/main.go`.
+- `//go:build e2e` tag on all `lab/` and `test/e2e/` `.go` files.
 - Never edit the generated root `Makefile`; only the hand-maintained `lab/Makefile`.
 - Blackhole/hop constants are fixed: cluster name `pmtud`, iface `pmtudlab0`, hop IP `10.99.0.1/24`, blackhole IP `10.99.0.2`, hop MTU `1280`, ping size `1400`.
 - Pure-helper tests run without docker via `go test -tags e2e ./lab/ -run <Name>`; infra funcs are validated only by `make -C lab e2e` (Task 10).
@@ -206,7 +206,7 @@ type Lab struct {
 }
 
 func Provision(ctx context.Context) (*Lab, error) {
-	repoRoot := os.Getenv("REPO_ROOT")
+	repoRoot := os.Getenv("LAB_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}
@@ -572,7 +572,7 @@ import (
 )
 
 func (l *Lab) DeployBackend(ctx context.Context, backend string) error {
-	repoRoot := os.Getenv("REPO_ROOT")
+	repoRoot := os.Getenv("LAB_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}

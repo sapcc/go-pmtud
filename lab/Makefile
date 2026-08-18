@@ -29,13 +29,10 @@ down: ## Remove lab (single kind cluster)
 ## Go e2e suite
 
 e2e: ## Run Go e2e suite (provisions, tests udp+crd, tears down)
-	cd .. && REPO_ROOT=$$(pwd) go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
-
-e2e-reuse: ## Run e2e without reprovisioning
-	cd .. && REPO_ROOT=$$(pwd) LAB_REUSE=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+	cd .. && LAB_ROOT=$$(pwd) go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
 
 e2e-keep: ## Run e2e but keep lab after (for manual inspection)
-	cd .. && REPO_ROOT=$$(pwd) LAB_KEEP=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+	cd .. && LAB_ROOT=$$(pwd) LAB_KEEP=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
 
 ## Help
 

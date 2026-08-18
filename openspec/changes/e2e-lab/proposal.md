@@ -68,8 +68,8 @@ networks, an HTTP application, or a NodePort.
 ## Impact
 
 - **Code**: New `test/e2e/` (suite + specs) and `lab/` package (Kind config,
-  provisioning, hop setup, deploy, `ping` trigger, PMTU inspection, `labctl`
-  CLI). New `lab/RUNBOOK-real-cluster.md` and `lab/README.md`.
+  provisioning, hop setup, deploy, `ping` trigger, PMTU inspection).
+  New `lab/RUNBOOK-real-cluster.md` and `lab/README.md`.
 - **Dependencies** (test-scope): `sigs.k8s.io/kind`, `github.com/onsi/ginkgo/v2`,
   `github.com/onsi/gomega`. `client-go`/`controller-runtime` already present. No
   docker SDK — docker/`ip`/`ping` plumbing stays behind thin `run()` /

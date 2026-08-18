@@ -37,7 +37,7 @@ type Lab struct {
 }
 
 func Provision(ctx context.Context) (*Lab, error) {
-	repoRoot := os.Getenv("REPO_ROOT")
+	repoRoot := os.Getenv("LAB_ROOT")
 	if repoRoot == "" {
 		repoRoot = "."
 	}
@@ -70,9 +70,4 @@ func (l *Lab) Teardown(ctx context.Context) error {
 		return nil
 	}
 	return deleteCluster(ctx, ClusterName)
-}
-
-func Attach(ctx context.Context) (*Lab, error) {
-	// TODO: discover a running lab for LAB_REUSE; unchanged pre-existing limitation.
-	return nil, fmt.Errorf("not implemented")
 }
