@@ -8,45 +8,61 @@ package lab
 import (
 	"context"
 	"fmt"
+	"strconv"
 )
 
-func configureRoutes(ctx context.Context, l *Lab) error {
-	// Cluster-a → cluster-b
-	for _, w := range l.ClusterA.Workers {
-		_, err := dockerExec(w, "ip", "route", "replace", "172.31.0.0/16", "via", "172.30.0.10")
-		if err != nil {
-			return fmt.Errorf("route cluster-a → net-b: %w", err)
-		}
-		_, err = dockerExec(w, "ip", "route", "replace", "10.245.0.0/16", "via", "172.30.0.10")
-		if err != nil {
-			return fmt.Errorf("route cluster-a → pod-b: %w", err)
-		}
+// configureHop turns the control-plane node into a low-MTU forwarding hop and
+// routes the blackhole subnet from worker-A through it, so a DF-set ping from
+// worker-A elicits a real ICMP frag-needed the NFLOG rule can capture.
+func configureHop(ctx context.Context, l *Lab) error {
+	cp := l.Cluster.ControlPlane
+
+	if _, err := dockerExec(cp, "sysctl", "-w", "net.ipv4.ip_forward=1"); err != nil {
+		return fmt.Errorf("enable ip_forward on hop: %w", err)
+	}
+	if err := createHopIface(cp); err != nil {
+		return err
+	}
+	if _, err := dockerExec(cp, "ip", "addr", "replace", HopIP+"/24", "dev", HopIfaceName); err != nil {
+		return fmt.Errorf("assign hop address: %w", err)
 	}
 
-	// Cluster-b → cluster-a
-	for _, w := range l.ClusterB.Workers {
-		_, err := dockerExec(w, "ip", "route", "replace", "172.30.0.0/16", "via", "172.31.0.10")
-		if err != nil {
-			return fmt.Errorf("route cluster-b → net-a: %w", err)
-		}
-		_, err = dockerExec(w, "ip", "route", "replace", "10.244.0.0/16", "via", "172.31.0.10")
-		if err != nil {
-			return fmt.Errorf("route cluster-b → pod-a: %w", err)
-		}
+	cpIP, err := containerIP(cp)
+	if err != nil {
+		return err
 	}
-
+	worker := l.Cluster.Workers[0]
+	if _, err := dockerExec(worker, "ip", "route", "replace", HopSubnet, "via", cpIP); err != nil {
+		return fmt.Errorf("route worker-A -> hop subnet: %w", err)
+	}
 	return nil
 }
 
-func disableOffloads(ctx context.Context, l *Lab) error {
-	for _, nodes := range [][]string{l.ClusterA.Workers, l.ClusterB.Workers} {
-		for _, w := range nodes {
-			iface, err := ifaceByIP(w, "172.")
-			if err != nil {
-				continue
-			}
-			_, _ = dockerExec(w, "ethtool", "-K", iface, "gso", "off", "gro", "off", "tso", "off")
+// createHopIface creates pmtudlab0 clamped to HopMTU. Prefers a dummy device;
+// falls back to a veth pair (far end left down) if the dummy module is absent.
+func createHopIface(node string) error {
+	dockerExec(node, "ip", "link", "del", HopIfaceName) // best-effort cleanup
+
+	if _, err := dockerExec(node, "ip", "link", "add", HopIfaceName, "type", "dummy"); err != nil {
+		if _, err2 := dockerExec(node, "ip", "link", "add", HopIfaceName,
+			"type", "veth", "peer", "name", HopIfaceName+"p"); err2 != nil {
+			return fmt.Errorf("create hop iface (dummy: %v; veth: %w)", err, err2)
 		}
+	}
+	if _, err := dockerExec(node, "ip", "link", "set", HopIfaceName, "mtu", strconv.Itoa(HopMTU)); err != nil {
+		return fmt.Errorf("set hop mtu: %w", err)
+	}
+	if _, err := dockerExec(node, "ip", "link", "set", HopIfaceName, "up"); err != nil {
+		return fmt.Errorf("bring up hop iface: %w", err)
+	}
+	return nil
+}
+
+// ensurePing installs iputils-ping on the given node if ping is missing.
+func ensurePing(node string) error {
+	if err := run("docker", "exec", node, "sh", "-c",
+		"command -v ping >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y --no-install-recommends iputils-ping)"); err != nil {
+		return fmt.Errorf("ensure ping on %s: %w", node, err)
 	}
 	return nil
 }
