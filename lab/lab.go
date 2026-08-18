@@ -10,7 +10,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ClusterName  = "pmtud"
+	HopIfaceName = "pmtudlab0"
+	HopIP        = "10.99.0.1"
+	HopSubnet    = "10.99.0.0/24"
+	blackholeIP  = "10.99.0.2"
+	HopMTU       = 1280
 )
 
 type Cluster struct {
@@ -18,13 +28,12 @@ type Cluster struct {
 	KubeconfigPath string
 	Client         client.Client
 	Workers        []string
-	ControlPlane   string
+	ControlPlane   string // docker container of the control-plane node (low-MTU hop)
 }
 
 type Lab struct {
-	ClusterA, ClusterB *Cluster
-	Router             string // container name
-	DestIP             string // podinfo NodePort host IP
+	Cluster     *Cluster
+	BlackholeIP string
 }
 
 func Provision(ctx context.Context) (*Lab, error) {
@@ -32,67 +41,27 @@ func Provision(ctx context.Context) (*Lab, error) {
 	if repoRoot == "" {
 		repoRoot = "."
 	}
+	config := filepath.Join(repoRoot, "lab/configs/kind-cluster.yaml")
 
-	if err := createNetworks(ctx, DefaultNetworks); err != nil {
-		return nil, err
-	}
-
-	configA := filepath.Join(repoRoot, "lab/configs/kind-cluster-a.yaml")
-	configB := filepath.Join(repoRoot, "lab/configs/kind-cluster-b.yaml")
-
-	a, err := createCluster(ctx, "pmtud-cluster-a", configA)
+	c, err := createCluster(ctx, ClusterName, config)
 	if err != nil {
 		return nil, err
 	}
-	b, err := createCluster(ctx, "pmtud-cluster-b", configB)
-	if err != nil {
+	if c.ControlPlane == "" {
+		return nil, fmt.Errorf("no control-plane node discovered for cluster %s", ClusterName)
+	}
+	if len(c.Workers) < 2 {
+		return nil, fmt.Errorf("need >=2 workers, found %d", len(c.Workers))
+	}
+
+	l := &Lab{Cluster: c, BlackholeIP: blackholeIP}
+
+	if err := configureHop(ctx, l); err != nil {
 		return nil, err
 	}
-
-	// Connect all cluster nodes to their dedicated networks so that the
-	// gateway IPs (172.30.0.10 / 172.31.0.10) are reachable from workers.
-	for _, node := range clusterContainers("pmtud-cluster-a") {
-		if err := run("docker", "network", "connect", "pmtud-net-a", node); err != nil {
-			return nil, fmt.Errorf("connect %s to pmtud-net-a: %w", node, err)
-		}
-	}
-	for _, node := range clusterContainers("pmtud-cluster-b") {
-		if err := run("docker", "network", "connect", "pmtud-net-b", node); err != nil {
-			return nil, fmt.Errorf("connect %s to pmtud-net-b: %w", node, err)
-		}
-	}
-
-	// Install curl on cluster-a workers for traffic generation
-	for _, w := range a.Workers {
-		if err := run("docker", "exec", w, "sh", "-c",
-			"apt-get update -qq && apt-get install -y --no-install-recommends curl"); err != nil {
-			return nil, fmt.Errorf("install curl on %s: %w", w, err)
-		}
-	}
-
-	r, err := createRouter(ctx)
-	if err != nil {
+	if err := ensurePing(l.Cluster.Workers[0]); err != nil {
 		return nil, err
 	}
-
-	l := &Lab{ClusterA: a, ClusterB: b, Router: r}
-
-	if err := configureRoutes(ctx, l); err != nil {
-		return nil, err
-	}
-	if err := disableOffloads(ctx, l); err != nil {
-		return nil, err
-	}
-
-	// Discover cluster-b worker IP on pmtud-net-b for traffic generation
-	if len(b.Workers) > 0 {
-		ip, err := ipOnSubnet(b.Workers[0], "172.31.")
-		if err != nil {
-			return nil, fmt.Errorf("discover cluster-b dest IP: %w", err)
-		}
-		l.DestIP = ip
-	} 
-
 	return l, nil
 }
 
@@ -100,15 +69,10 @@ func (l *Lab) Teardown(ctx context.Context) error {
 	if os.Getenv("LAB_KEEP") != "" {
 		return nil
 	}
-	removeRouter(ctx)
-	deleteCluster(ctx, "pmtud-cluster-a")
-	deleteCluster(ctx, "pmtud-cluster-b")
-	removeNetworks(ctx, DefaultNetworks)
-	return nil
+	return deleteCluster(ctx, ClusterName)
 }
 
 func Attach(ctx context.Context) (*Lab, error) {
-	// TODO: discover running lab; connect clients
-	// Only needed if LAB_REUSE mode is used
+	// TODO: discover a running lab for LAB_REUSE; unchanged pre-existing limitation.
 	return nil, fmt.Errorf("not implemented")
 }
