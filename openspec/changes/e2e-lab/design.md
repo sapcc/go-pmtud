@@ -100,7 +100,7 @@ sidesteps docker networking entirely and works on Linux and macOS alike.
 
 | File | Responsibility |
 |---|---|
-| `lab.go` | `Lab{ Cluster *Cluster; Hop string; BlackholeIP string }`. `Provision`: create cluster, discover control-plane + workers, configure hop, add worker-A route. `Teardown`: delete cluster (no-op on `LAB_KEEP`). `Attach` for `LAB_REUSE`. |
+| `lab.go` | `Lab{ Cluster *Cluster; BlackholeIP string }`. `Provision`: create cluster, discover control-plane + workers, configure hop, add worker-A route. `Teardown`: delete cluster (no-op on `LAB_KEEP`). `Attach` for `LAB_REUSE`. |
 | `cluster.go` | Kind Go API create/delete; isolated temp kubeconfig; `controller-runtime` client with `v1alpha1` scheme; worker + control-plane container discovery via `docker ps --filter label=io.x-k8s.kind.role=...`. |
 | `routes.go` | Hop setup on the control-plane (`ip_forward`, `pmtudlab0` @1280 with `veth` fallback, address) and the single route on worker-A. |
 | `deploy.go` | `DeployBackend(backend)`: build image, `kind load`, apply RBAC + daemonset (inject `--relay-backend` + `POD_NAMESPACE`) + CRD (crd backend), `waitRollout`. |
