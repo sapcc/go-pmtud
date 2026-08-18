@@ -21,7 +21,7 @@ var _ = ginkgo.Describe("relay backend", func() {
 
 			ginkgo.It("deploys with correct config", func(ctx ginkgo.SpecContext) {
 				var ds appsv1.DaemonSet
-				gomega.Expect(testLab.ClusterA.Client.Get(ctx,
+				gomega.Expect(testLab.Cluster.Client.Get(ctx,
 					client.ObjectKey{Namespace: "kube-system", Name: "go-pmtud"}, &ds)).
 					To(gomega.Succeed())
 

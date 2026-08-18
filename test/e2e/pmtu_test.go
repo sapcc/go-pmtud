@@ -20,32 +20,22 @@ var _ = ginkgo.Describe("PMTU replication", func() {
 			})
 
 			ginkgo.It("replicates PMTU to peer nodes", func(ctx ginkgo.SpecContext) {
-				// flush route caches
-				for _, w := range testLab.ClusterA.Workers {
+				for _, w := range testLab.Cluster.Workers {
 					gomega.Expect(testLab.FlushRouteCache(w)).To(gomega.Succeed())
 				}
 
-				// start ICMP capture on router
-				icmp := testLab.CaptureICMPAsync(ctx, 15*time.Second)
-
-				// generate traffic
+				// ping errors unless the hop returned a frag-needed
 				gomega.Expect(testLab.GenerateTraffic(ctx)).To(gomega.Succeed())
 
-				// wait for ICMP
-				gomega.Eventually(func() int { return icmp.Count }).
-					WithTimeout(20 * time.Second).
-					Should(gomega.BeNumerically(">", 0),
-						"router must generate ICMP frag-needed")
-
-				// wait for PMTU convergence on all workers
-				for _, w := range testLab.ClusterA.Workers {
+				// originator converges natively; peers converge via the relay
+				for _, w := range testLab.Cluster.Workers {
 					gomega.Eventually(func() (int, error) {
-						return testLab.PMTUTo(w, testLab.DestIP)
+						return testLab.PMTUTo(w, testLab.BlackholeIP)
 					}).
 						WithTimeout(30 * time.Second).
 						WithPolling(2 * time.Second).
-						Should(gomega.Equal(1500),
-							"worker %s PMTU must converge to 1500 via %s relay", w, backend)
+						Should(gomega.Equal(1280),
+							"worker %s PMTU must converge to 1280 via %s relay", w, backend)
 				}
 			})
 		})
