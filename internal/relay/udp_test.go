@@ -79,7 +79,7 @@ func TestIsKnownPeer(t *testing.T) {
 
 func TestSendToUnknownPeer(t *testing.T) {
 	injected := false
-	inject := func(payload []byte) error {
+	inject := func(_ []byte) error { //nolint:unparam
 		injected = true
 		return nil
 	}
@@ -123,7 +123,7 @@ func TestSendToUnknownPeer(t *testing.T) {
 
 func TestInvalidPayload(t *testing.T) {
 	injected := false
-	inject := func(payload []byte) error {
+	inject := func(_ []byte) error { //nolint:unparam
 		injected = true
 		return nil
 	}
@@ -166,7 +166,7 @@ func TestInvalidPayload(t *testing.T) {
 func TestValidPayload(t *testing.T) {
 	injected := false
 	var injectedPayload []byte
-	inject := func(payload []byte) error {
+	inject := func(payload []byte) error { //nolint:unparam
 		injected = true
 		injectedPayload = make([]byte, len(payload))
 		copy(injectedPayload, payload)

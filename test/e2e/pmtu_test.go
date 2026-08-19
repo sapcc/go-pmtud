@@ -40,8 +40,8 @@ var _ = ginkgo.Describe("PMTU replication", func() {
 				gomega.Eventually(func() (int, error) {
 					return testLab.PMTUTo(originator, testLab.BlackholeIP)
 				}).
-					WithTimeout(30 * time.Second).
-					WithPolling(2 * time.Second).
+					WithTimeout(30*time.Second).
+					WithPolling(2*time.Second).
 					Should(gomega.Equal(1280),
 						"originator %s must converge natively to 1280 (%s)", originator, backend)
 
@@ -52,8 +52,8 @@ var _ = ginkgo.Describe("PMTU replication", func() {
 					gomega.Eventually(func() (int, error) {
 						return testLab.RecvPackets(w)
 					}).
-						WithTimeout(30 * time.Second).
-						WithPolling(2 * time.Second).
+						WithTimeout(30*time.Second).
+						WithPolling(2*time.Second).
 						Should(gomega.BeNumerically(">", base[w]),
 							"peer %s must receive a relayed frag-needed via %s", w, backend)
 				}

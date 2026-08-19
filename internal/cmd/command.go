@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	goflag "flag"
 	"fmt"
 	"net"
@@ -95,7 +96,7 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 			cfg.RelayNamespace = os.Getenv("POD_NAMESPACE")
 		}
 		if cfg.RelayNamespace == "" {
-			return fmt.Errorf("relay backend is 'crd' but no namespace could be resolved: set --relay-namespace or POD_NAMESPACE env var")
+			return errors.New("relay backend is 'crd' but no namespace could be resolved: set --relay-namespace or POD_NAMESPACE env var")
 		}
 	}
 	return nil

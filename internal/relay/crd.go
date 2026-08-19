@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,10 +36,10 @@ type crdBackend struct {
 
 func newCRDBackend(d Deps) (Relay, error) {
 	if d.Client == nil || d.Cache == nil {
-		return nil, fmt.Errorf("crd backend requires a kube client and cache")
+		return nil, errors.New("crd backend requires a kube client and cache")
 	}
 	if d.Cfg.RelayNamespace == "" {
-		return nil, fmt.Errorf("crd backend requires a namespace (--relay-namespace or POD_NAMESPACE)")
+		return nil, errors.New("crd backend requires a namespace (--relay-namespace or POD_NAMESPACE)")
 	}
 	gcTick := d.Cfg.RelayGCInterval
 	if gcTick <= 0 {
@@ -141,7 +142,7 @@ func (c *crdBackend) gcExpired(ctx context.Context) {
 		if list.Items[i].Spec.SourceNode != c.cfg.NodeName {
 			continue
 		}
-		if list.Items[i].Spec.ExpiresAt.Time.After(now) {
+		if list.Items[i].Spec.ExpiresAt.After(now) {
 			continue
 		}
 		if err := c.client.Delete(ctx, &list.Items[i]); err != nil && !apierrors.IsNotFound(err) {
@@ -149,4 +150,3 @@ func (c *crdBackend) gcExpired(ctx context.Context) {
 		}
 	}
 }
- 

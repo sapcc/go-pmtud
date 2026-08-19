@@ -33,9 +33,7 @@ func TestControllerSendViaRelay(t *testing.T) {
 	testPayload := buildTestICMPPacket()
 
 	cfg := &config.Config{
-		NodeName:       "test-node",
-		PeerList:       make(map[string]string),
-		IgnoreNetworks: nil,
+		NodeName: "test-node",
 	}
 
 	fr := &fakeRelay{}
