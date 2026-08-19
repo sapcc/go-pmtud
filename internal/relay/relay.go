@@ -14,12 +14,6 @@ import (
 	"github.com/sapcc/go-pmtud/internal/config"
 )
 
-// Backend constants
-const (
-	BackendUDP = "udp"
-	BackendCRD = "crd"
-)
-
 // RelayPacket represents a packet to be relayed between nodes
 type RelayPacket struct {
 	Payload []byte
@@ -41,13 +35,13 @@ type Deps struct {
 }
 
 // New creates a new Relay backend based on the given backend type
-func New(backend string, d Deps) (Relay, error) {
+func New(backend config.Backend, d Deps) (Relay, error) {
 	switch backend {
-	case BackendUDP:
+	case config.BackendUDP:
 		return newUDPBackend(d)
-	case BackendCRD:
+	case config.BackendCRD:
 		return newCRDBackend(d)
 	default:
-		return nil, fmt.Errorf("unknown relay backend %q (want %q or %q)", backend, BackendUDP, BackendCRD)
+		return nil, fmt.Errorf("unknown relay backend %q (want %q or %q)", backend, config.BackendUDP, config.BackendCRD)
 	}
 }

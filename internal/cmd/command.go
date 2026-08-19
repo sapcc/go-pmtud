@@ -57,7 +57,8 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&cfg.ReplicationPort, "replication-port", 4390, "UDP port for ICMP packet replication between nodes. Only used when relay-backend=udp")
 	rootCmd.PersistentFlags().StringSliceVar(&cfg.IgnoreNetworksRaw, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma-separated CIDRs)")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
-	rootCmd.PersistentFlags().StringVar(&cfg.RelayBackend, "relay-backend", "crd", "Relay backend: udp or crd")
+	cfg.RelayBackend = conf.BackendCRD
+	rootCmd.PersistentFlags().Var(&cfg.RelayBackend, "relay-backend", "Relay backend: udp or crd")
 	rootCmd.PersistentFlags().StringVar(&cfg.RelayNamespace, "relay-namespace", "", "Namespace for CRD relay objects (defaults to POD_NAMESPACE env var)")
 	rootCmd.PersistentFlags().DurationVar(&cfg.RelayGCInterval, "relay-gc-interval", 60*time.Second, "CRD relay garbage collection interval")
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
@@ -86,17 +87,13 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 		}
 		cfg.IgnoreNetworks = append(cfg.IgnoreNetworks, ipNet)
 	}
-	// Validate relay backend
-	if cfg.RelayBackend != "udp" && cfg.RelayBackend != "crd" {
-		return fmt.Errorf("invalid relay backend %q: must be 'udp' or 'crd'", cfg.RelayBackend)
-	}
 	// Validate replication port flag is only set if relay backend is udp
-	if cfg.RelayBackend != "udp" && cmd.PersistentFlags().Changed("replication-port") {
+	if cfg.RelayBackend != conf.BackendUDP && cmd.PersistentFlags().Changed("replication-port") {
 		return fmt.Errorf("--replication-port is only valid with --relay-backend=udp")
 	}
 
 	// Resolve relay namespace from flag or POD_NAMESPACE env var
-	if cfg.RelayBackend == "crd" {
+	if cfg.RelayBackend == conf.BackendCRD {
 		if cfg.RelayNamespace == "" {
 			cfg.RelayNamespace = os.Getenv("POD_NAMESPACE")
 		}
