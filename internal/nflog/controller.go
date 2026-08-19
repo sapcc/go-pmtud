@@ -21,6 +21,8 @@ import (
 const nfBufsize = 2 * 1024 * 1024
 const readBufsize = 2 * 1024 * 1024
 
+// Controller receives ICMP frag-needed packets from the kernel via NFLOG,
+// filters them, and forwards each captured packet to peer nodes via the Relay.
 type Controller struct {
 	Log   logr.Logger
 	Cfg   *config.Config
@@ -60,8 +62,8 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		return err
 	}
 
-	fn := func(attrs nflog.Attribute) int {
-		// go-nflog only sets Payload when the kernel copied one; drop attrs without it.
+	nflogCallback := func(attrs nflog.Attribute) int {
+		// Payload is nil when the kernel sent no packet copy (e.g. --nflog-size 0); nothing to relay.
 		if attrs.Payload == nil {
 			return 0
 		}
@@ -111,8 +113,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()
 
 		log.Info("ICMP frag-needed received, resending packet.", "ICMP source", sourceIP,
-			"source IP", s,
-			"could not send to destination IP", d)
+			"source IP", s, "could not send to destination IP", d)
 
 		if err := nfc.Relay.Send(ctx, relay.RelayPacket{Payload: b, SrcNode: cfg.NodeName}); err != nil {
 			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
@@ -124,11 +125,11 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		return 0
 	}
 
-	err = nf.RegisterWithErrorFunc(ctx, fn, func(err error) int {
+	err = nf.RegisterWithErrorFunc(ctx, nflogCallback, func(err error) int {
 		log.Error(err, "nflog error")
 		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
 		cancel()
-		return 0
+		return -1
 	})
 
 	if err != nil {
