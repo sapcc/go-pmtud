@@ -56,13 +56,11 @@ func TestCalcSrcDst(t *testing.T) {
 	}
 }
 
-// TestCalcSrcDst_ShortPayload documents that a payload shorter than 48 bytes
-// causes a panic due to missing bounds checking in CalcSrcDst.
+// TestCalcSrcDst_ShortPayload verifies that a payload shorter than 48 bytes
+// returns an error instead of panicking.
 func TestCalcSrcDst_ShortPayload(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic for short payload, got none")
-		}
-	}()
-	_, _, _ = CalcSrcDst(make([]byte, 10))
+	_, _, err := CalcSrcDst(make([]byte, 10))
+	if err == nil {
+		t.Error("expected error for short payload, got nil")
+	}
 }

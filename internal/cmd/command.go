@@ -89,7 +89,7 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 	}
 	// Validate replication port flag is only set if relay backend is udp
 	if cfg.RelayBackend != conf.BackendUDP && cmd.PersistentFlags().Changed("replication-port") {
-		return fmt.Errorf("--replication-port is only valid with --relay-backend=udp")
+		return errors.New("--replication-port is only valid with --relay-backend=udp")
 	}
 
 	// Resolve relay namespace from flag or POD_NAMESPACE env var
