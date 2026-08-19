@@ -8,11 +8,13 @@ WORKDIR /go/src/github.com/sapcc/go-pmtud
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -v -o /go-pmtud cmd/go-pmtud/main.go
+RUN CGO_ENABLED=0 go build -v -o /go-pmtud cmd/go-pmtud/main.go
 
-FROM ubuntu:noble
+FROM alpine:latest AS certs
+RUN apk add --no-cache ca-certificates
+
+FROM scratch
 LABEL source_repository="https://github.com/sapcc/go-pmtud"
-RUN apt-get update && apt-get install -y \
-    iptables iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go-pmtud /go-pmtud
+ENTRYPOINT ["/go-pmtud"]
