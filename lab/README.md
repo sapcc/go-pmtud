@@ -59,7 +59,6 @@ cd lab/
 
 # Go e2e test suite (recommended)
 make e2e                          # provision + test both backends + teardown
-LAB_REUSE=1 make e2e-reuse       # skip provisioning (fast iteration)
 LAB_KEEP=1 make e2e-keep         # keep lab after test (manual inspection)
 
 # Observability (manual inspection only)
@@ -77,12 +76,6 @@ make e2e
 ```
 Provisions lab, runs all e2e tests (20m timeout), tears down.
 
-**Fast iteration (reuse lab):**
-```bash
-LAB_REUSE=1 make e2e-reuse
-```
-Skips provisioning, reuses existing lab — useful when iterating on test logic.
-
 **Manual inspection (keep lab):**
 ```bash
 LAB_KEEP=1 make e2e-keep
@@ -92,7 +85,7 @@ Runs tests but keeps the lab running after completion — inspect clusters, logs
 **Custom Ginkgo flags:**
 ```bash
 make e2e GINKGO_FLAGS="-v --fail-fast"
-LAB_REUSE=1 make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
+make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
 ```
 
 ## Makefile Targets
@@ -115,7 +108,7 @@ The lab uses the control-plane node as a relay hop with reduced MTU. Setup:
 4. **Deploy** loads locally-built go-pmtud images and applies DaemonSet + CRD/RBAC
 5. **Test** uses `ping -M do -s 1400` or sustained transfers to generate packets exceeding the control-plane's MTU
 6. Control-plane interface sends ICMP fragmentation-needed back to the source
-7. go-pmtud captures via NFLOG, replicates to peers via UDP (or CRD)
+7. go-pmtud captures via NFLOG, replicates to peers via CRD (or UDP)
 8. Peers inject via TUN device → kernel PMTU cache updated
 
 ## Relay Backends
