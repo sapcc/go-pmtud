@@ -18,8 +18,10 @@ SPDX-License-Identifier: Apache-2.0
 
 - Module path: `github.com/sapcc/go-pmtud`. Copy for new files.
 - Every source file starts with the SPDX header:
-  `// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company` and
-  `// SPDX-License-Identifier: Apache-2.0`.
+  ```
+  // SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+  // SPDX-License-Identifier: Apache-2.0
+  ```
 - Linux-only code (TUN device, syscalls) is gated behind `//go:build linux` with a
   non-linux stub of identical signature. UDP and CRD backends are OS-agnostic (use
   `net` / controller-runtime only) — no build tag.
