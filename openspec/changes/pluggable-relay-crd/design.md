@@ -87,13 +87,14 @@ fd avoids double-open and centralizes the loop-prevention contract (`! -i pmtud0
 
 ### 3. Backend selection via single flag
 
-**Decision**: `--relay-backend=udp|crd`, default `udp`. `internal/cmd` constructs
+**Decision**: `--relay-backend=udp|crd`, default `crd`. `internal/cmd` constructs
 the chosen `Relay`, hands it to the nflog controller (for `Send`), and registers a
 runnable that owns the injector and calls `relay.Start(ctx, injector.Inject)`.
+`--replication-port` is rejected at startup if `--relay-backend` is not `udp`.
 
 **Rationale**: A DaemonSet runs one config per node; one active backend matches
-reality and avoids inject-side dedup across backends. `udp` default preserves
-current behavior for existing deployments.
+reality and avoids inject-side dedup across backends. `crd` default makes the
+no-extra-ports path the out-of-the-box experience; `udp` requires an explicit opt-in.
 
 ### 4. CRD backend: namespaced, broadcast, dedup by name
 
