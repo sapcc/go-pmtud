@@ -63,66 +63,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	}
 
 	nflogCallback := func(attrs nflog.Attribute) int {
-		// Payload is nil when the kernel sent no packet copy (e.g. --nflog-size 0); nothing to relay.
-		if attrs.Payload == nil {
-			return 0
-		}
-
-		var peerIPs []string
-		cfg.PeerMutex.Lock()
-		for _, ip := range cfg.PeerList {
-			peerIPs = append(peerIPs, ip)
-		}
-		cfg.PeerMutex.Unlock()
-
-		start := time.Now()
-
-		b := append(make([]byte, 0, len(*attrs.Payload)), *attrs.Payload...)
-
-		rcvHeader, err := ipv4.ParseHeader(b)
-		if err != nil {
-			// Drop the bad packet; a non-zero return or cancel() would tear down
-			// the nflog receive goroutine permanently (manager won't restart it).
-			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "Unable to read source IP address")
-			return 0
-		}
-		sourceIP := rcvHeader.Src
-
-		// Check if source IP is in ignore-networks (loop prevention)
-		if isIgnoredNetwork(sourceIP, cfg.IgnoreNetworks) {
-			log.Info("skipping packet from ignored network", "source", sourceIP)
-			return 0
-		}
-
-		// Defense-in-depth: skip if source IP matches any peer node IP
-		// (prevents loops if a peer-injected packet is re-captured)
-		if isPeerIP(sourceIP, peerIPs) {
-			log.Info("skipping packet from peer node", "source", sourceIP)
-			return 0
-		}
-
-		s, d, err := util.CalcSrcDst(b)
-		if err != nil {
-			// Drop, don't tear down (see ParseHeader path above).
-			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "Unable to calculate inner source and destination IP addresses")
-			return 0
-		}
-
-		metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()
-
-		log.Info("ICMP frag-needed received, resending packet.", "ICMP source", sourceIP,
-			"source IP", s, "could not send to destination IP", d)
-
-		if err := nfc.Relay.Send(ctx, relay.RelayPacket{Payload: b, SrcNode: cfg.NodeName}); err != nil {
-			metrics.Error.WithLabelValues(cfg.NodeName).Inc()
-			log.Error(err, "relay send failed")
-		}
-
-		duration := time.Since(start)
-		metrics.CallbackDuration.WithLabelValues(cfg.NodeName).Observe(duration.Seconds())
-		return 0
+		return nfc.handlePacket(ctx, attrs)
 	}
 
 	err = nf.RegisterWithErrorFunc(ctx, nflogCallback, func(err error) int {
@@ -142,6 +83,72 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	cancel()
 
 	return nil
+}
+
+func (nfc *Controller) handlePacket(ctx context.Context, attrs nflog.Attribute) int {
+	log := nfc.Log
+	cfg := nfc.Cfg
+
+	// Payload is nil when the kernel sent no packet copy (e.g. --nflog-size 0); nothing to relay.
+	if attrs.Payload == nil {
+		return 0
+	}
+
+	var peerIPs []string
+	cfg.PeerMutex.Lock()
+	for _, ip := range cfg.PeerList {
+		peerIPs = append(peerIPs, ip)
+	}
+	cfg.PeerMutex.Unlock()
+
+	start := time.Now()
+
+	b := append(make([]byte, 0, len(*attrs.Payload)), *attrs.Payload...)
+
+	rcvHeader, err := ipv4.ParseHeader(b)
+	if err != nil {
+		// Drop the bad packet; a non-zero return or cancel() would tear down
+		// the nflog receive goroutine permanently (manager won't restart it).
+		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		log.Error(err, "Unable to read source IP address")
+		return 0
+	}
+	sourceIP := rcvHeader.Src
+
+	// Check if source IP is in ignore-networks (loop prevention)
+	if isIgnoredNetwork(sourceIP, cfg.IgnoreNetworks) {
+		log.Info("skipping packet from ignored network", "source", sourceIP)
+		return 0
+	}
+
+	// Defense-in-depth: skip if source IP matches any peer node IP
+	// (prevents loops if a peer-injected packet is re-captured)
+	if isPeerIP(sourceIP, peerIPs) {
+		log.Info("skipping packet from peer node", "source", sourceIP)
+		return 0
+	}
+
+	s, d, err := util.CalcSrcDst(b)
+	if err != nil {
+		// Drop, don't tear down (see ParseHeader path above).
+		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		log.Error(err, "Unable to calculate inner source and destination IP addresses")
+		return 0
+	}
+
+	metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()
+
+	log.Info("ICMP frag-needed received, resending packet.", "ICMP source", sourceIP,
+		"source IP", s, "could not send to destination IP", d)
+
+	if err := nfc.Relay.Send(ctx, relay.RelayPacket{Payload: b, SrcNode: cfg.NodeName}); err != nil {
+		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		log.Error(err, "relay send failed")
+	}
+
+	duration := time.Since(start)
+	metrics.CallbackDuration.WithLabelValues(cfg.NodeName).Observe(duration.Seconds())
+	return 0
 }
 
 func isIgnoredNetwork(ip net.IP, networks []*net.IPNet) bool {

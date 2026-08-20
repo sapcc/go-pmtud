@@ -5,23 +5,22 @@ package nflog
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"strconv"
-	"sync"
 	"testing"
-	"time"
+
+	"github.com/florianl/go-nflog/v2"
+	"github.com/go-logr/logr"
 
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/relay"
 )
 
 type fakeRelay struct {
-	sent [][]byte
+	sent []relay.RelayPacket
 }
 
 func (f *fakeRelay) Send(_ context.Context, p relay.RelayPacket) error {
-	f.sent = append(f.sent, p.Payload)
+	f.sent = append(f.sent, p)
 	return nil
 }
 
@@ -29,151 +28,87 @@ func (f *fakeRelay) Start(context.Context, func([]byte) error) error {
 	return nil
 }
 
-func TestControllerSendViaRelay(t *testing.T) {
-	testPayload := buildTestICMPPacket()
-
-	cfg := &config.Config{
-		NodeName: "test-node",
+func newTestController(cfg *config.Config, r relay.Relay) *Controller {
+	return &Controller{
+		Log:   logr.Discard(),
+		Cfg:   cfg,
+		Relay: r,
 	}
+}
 
+func attrsWithPayload(payload []byte) nflog.Attribute {
+	return nflog.Attribute{Payload: &payload}
+}
+
+// TestHandlePacket_RelaysValidPacket verifies that a well-formed ICMP frag-needed
+// packet is forwarded to the relay with the correct payload and source node.
+func TestHandlePacket_RelaysValidPacket(t *testing.T) {
+	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]string)}
 	fr := &fakeRelay{}
+	c := newTestController(cfg, fr)
 
-	// Verify the relay can send a packet
-	err := fr.Send(context.Background(), relay.RelayPacket{Payload: testPayload, SrcNode: cfg.NodeName})
-	if err != nil {
-		t.Fatalf("Send failed: %v", err)
-	}
+	payload := buildTestICMPPacket()
+	c.handlePacket(context.Background(), attrsWithPayload(payload))
 
 	if len(fr.sent) != 1 {
-		t.Errorf("expected 1 send call, got %d", len(fr.sent))
+		t.Fatalf("expected 1 relay.Send call, got %d", len(fr.sent))
 	}
-
-	if len(fr.sent[0]) != len(testPayload) {
-		t.Errorf("payload size mismatch: got %d, want %d", len(fr.sent[0]), len(testPayload))
+	if fr.sent[0].SrcNode != "node-a" {
+		t.Errorf("SrcNode = %q, want %q", fr.sent[0].SrcNode, "node-a")
+	}
+	if len(fr.sent[0].Payload) != len(payload) {
+		t.Errorf("payload len = %d, want %d", len(fr.sent[0].Payload), len(payload))
 	}
 }
 
-func TestUDPSendToAllPeers(t *testing.T) {
-	const replicationPort = 14390
-	const numPeers = 3
+// TestHandlePacket_NilPayload verifies that a callback with no packet copy is dropped.
+func TestHandlePacket_NilPayload(t *testing.T) {
+	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]string)}
+	fr := &fakeRelay{}
+	c := newTestController(cfg, fr)
 
+	c.handlePacket(context.Background(), nflog.Attribute{Payload: nil})
+
+	if len(fr.sent) != 0 {
+		t.Errorf("expected no relay.Send call for nil payload, got %d", len(fr.sent))
+	}
+}
+
+// TestHandlePacket_IgnoredNetwork verifies that packets from configured ignore-networks
+// are dropped before reaching the relay.
+func TestHandlePacket_IgnoredNetwork(t *testing.T) {
+	_, ignored, _ := net.ParseCIDR("192.168.1.0/24")
 	cfg := &config.Config{
-		PeerList: make(map[string]string),
+		NodeName:       "node-a",
+		PeerList:       make(map[string]string),
+		IgnoreNetworks: []*net.IPNet{ignored},
 	}
+	fr := &fakeRelay{}
+	c := newTestController(cfg, fr)
 
-	// Start UDP listeners simulating peers
-	var wg sync.WaitGroup
-	received := make([][]byte, numPeers)
+	// buildTestICMPPacket has outer source IP 192.168.1.1 — inside the ignored network
+	c.handlePacket(context.Background(), attrsWithPayload(buildTestICMPPacket()))
 
-	for i := range numPeers {
-		port := replicationPort + i
-		cfg.PeerList[fmt.Sprintf("peer-%d", i)] = "127.0.0.1"
-
-		addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf(":%d", port))
-		if err != nil {
-			t.Fatal(err)
-		}
-		conn, err := net.ListenUDP("udp4", addr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer conn.Close()
-
-		wg.Add(1)
-		go func(idx int, c *net.UDPConn) {
-			defer wg.Done()
-			buf := make([]byte, 1500)
-			if err := c.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-				return
-			}
-			n, _, err := c.ReadFromUDP(buf)
-			if err != nil {
-				return
-			}
-			received[idx] = make([]byte, n)
-			copy(received[idx], buf[:n])
-		}(i, conn)
-	}
-
-	// Override peer list with different ports for each peer (since all are localhost)
-	cfg.PeerList = make(map[string]string)
-	for i := range numPeers {
-		cfg.PeerList[fmt.Sprintf("peer-%d", i)] = "127.0.0.1"
-	}
-
-	// Simulate sending to peers using the same logic as the controller
-	testPayload := buildTestICMPPacket()
-
-	cfg.PeerMutex.Lock()
-	var peerIPs []string
-	for _, ip := range cfg.PeerList {
-		peerIPs = append(peerIPs, ip)
-	}
-	cfg.PeerMutex.Unlock()
-
-	for i, peerIP := range peerIPs {
-		port := replicationPort + i
-		addr := net.JoinHostPort(peerIP, strconv.Itoa(port))
-		conn, err := net.Dial("udp4", addr)
-		if err != nil {
-			t.Fatalf("error dialing peer %s: %v", addr, err)
-		}
-		_, err = conn.Write(testPayload)
-		if err != nil {
-			t.Fatalf("error writing to peer %s: %v", addr, err)
-		}
-		conn.Close()
-	}
-
-	wg.Wait()
-
-	for i := range numPeers {
-		if received[i] == nil {
-			t.Errorf("peer %d did not receive packet", i)
-			continue
-		}
-		if len(received[i]) != len(testPayload) {
-			t.Errorf("peer %d received %d bytes, expected %d", i, len(received[i]), len(testPayload))
-		}
+	if len(fr.sent) != 0 {
+		t.Errorf("expected no relay.Send call for ignored-network packet, got %d", len(fr.sent))
 	}
 }
 
-// buildTestICMPPacket creates a minimal valid ICMP type 3 code 4 packet
-func buildTestICMPPacket() []byte {
-	// Outer IP header (20 bytes)
-	packet := []byte{
-		0x45, 0x00, 0x00, 0x38, // Version/IHL, TOS, Total Length
-		0x00, 0x00, 0x00, 0x00, // ID, Flags/Fragment Offset
-		0x40, 0x01, 0x00, 0x00, // TTL, Protocol (ICMP), Checksum
-		0xc0, 0xa8, 0x01, 0x01, // Source IP 192.168.1.1
-		0xc0, 0xa8, 0x01, 0x02, // Destination IP 192.168.1.2
+// TestHandlePacket_PeerIP verifies that packets whose outer source IP matches a peer
+// are dropped as a loop-prevention measure.
+func TestHandlePacket_PeerIP(t *testing.T) {
+	cfg := &config.Config{
+		NodeName: "node-a",
+		PeerList: map[string]string{"peer-b": "192.168.1.1"}, // matches outer src in test packet
 	}
+	fr := &fakeRelay{}
+	c := newTestController(cfg, fr)
 
-	// ICMP header (8 bytes) - Type 3, Code 4
-	packet = append(packet, []byte{
-		0x03, 0x04, // Type (Dest Unreachable), Code (Frag Needed)
-		0x00, 0x00, // Checksum
-		0x00, 0x00, // Unused
-		0x05, 0xDC, // Next-hop MTU (1500)
-	}...)
+	c.handlePacket(context.Background(), attrsWithPayload(buildTestICMPPacket()))
 
-	// Inner IP header (20 bytes)
-	packet = append(packet, []byte{
-		0x45, 0x00, 0x00, 0x3c, // Version/IHL, TOS, Total Length
-		0x12, 0x34, 0x40, 0x00, // ID, Flags/Fragment Offset
-		0x40, 0x06, 0x00, 0x00, // TTL, Protocol (TCP), Checksum
-		0x0a, 0x00, 0x00, 0x01, // Source IP 10.0.0.1
-		0x0a, 0x00, 0x00, 0x02, // Destination IP 10.0.0.2
-	}...)
-
-	// Inner TCP header (8 bytes)
-	packet = append(packet, []byte{
-		0x30, 0x39, // Source port (12345)
-		0x00, 0x50, // Destination port (80)
-		0x00, 0x00, 0x00, 0x00, // Sequence number
-	}...)
-
-	return packet
+	if len(fr.sent) != 0 {
+		t.Errorf("expected no relay.Send call for peer-IP packet, got %d", len(fr.sent))
+	}
 }
 
 func TestIsIgnoredNetwork(t *testing.T) {
@@ -259,4 +194,43 @@ func TestIsPeerIP(t *testing.T) {
 			}
 		})
 	}
+}
+
+// buildTestICMPPacket creates a minimal valid ICMP type 3 code 4 packet.
+// Outer source IP is 192.168.1.1, inner src/dst are 10.0.0.1 and 10.0.0.2.
+func buildTestICMPPacket() []byte {
+	// Outer IP header (20 bytes)
+	packet := []byte{
+		0x45, 0x00, 0x00, 0x38, // Version/IHL, TOS, Total Length
+		0x00, 0x00, 0x00, 0x00, // ID, Flags/Fragment Offset
+		0x40, 0x01, 0x00, 0x00, // TTL, Protocol (ICMP), Checksum
+		0xc0, 0xa8, 0x01, 0x01, // Source IP 192.168.1.1
+		0xc0, 0xa8, 0x01, 0x02, // Destination IP 192.168.1.2
+	}
+
+	// ICMP header (8 bytes) - Type 3, Code 4
+	packet = append(packet, []byte{
+		0x03, 0x04, // Type (Dest Unreachable), Code (Frag Needed)
+		0x00, 0x00, // Checksum
+		0x00, 0x00, // Unused
+		0x05, 0xDC, // Next-hop MTU (1500)
+	}...)
+
+	// Inner IP header (20 bytes)
+	packet = append(packet, []byte{
+		0x45, 0x00, 0x00, 0x3c, // Version/IHL, TOS, Total Length
+		0x12, 0x34, 0x40, 0x00, // ID, Flags/Fragment Offset
+		0x40, 0x06, 0x00, 0x00, // TTL, Protocol (TCP), Checksum
+		0x0a, 0x00, 0x00, 0x01, // Source IP 10.0.0.1
+		0x0a, 0x00, 0x00, 0x02, // Destination IP 10.0.0.2
+	}...)
+
+	// Inner TCP header (8 bytes)
+	packet = append(packet, []byte{
+		0x30, 0x39, // Source port (12345)
+		0x00, 0x50, // Destination port (80)
+		0x00, 0x00, 0x00, 0x00, // Sequence number
+	}...)
+
+	return packet
 }
