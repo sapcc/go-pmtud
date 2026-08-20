@@ -77,7 +77,11 @@ func TestHandlePacket_NilPayload(t *testing.T) {
 // TestHandlePacket_IgnoredNetwork verifies that packets from configured ignore-networks
 // are dropped before reaching the relay.
 func TestHandlePacket_IgnoredNetwork(t *testing.T) {
-	_, ignored, _ := net.ParseCIDR("192.168.1.0/24")
+	_, ignored, err := net.ParseCIDR("192.168.1.0/24")
+	if err != nil {
+		t.Fatalf("failed to parse CIDR: %v", err)
+	}
+
 	cfg := &config.Config{
 		NodeName:       "node-a",
 		PeerList:       make(map[string]string),

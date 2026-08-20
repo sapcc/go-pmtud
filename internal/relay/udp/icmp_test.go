@@ -75,7 +75,7 @@ func TestParseICMPFragNeeded(t *testing.T) {
 		{
 			name: "wrong ICMP type",
 			packet: func() []byte {
-				p := buildICMPFragNeededPacket(1400, net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 80, 80)
+				p := buildICMPFragNeededPacket(1500, net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 80, 80)
 				p[20] = 8 // echo request
 				return p
 			}(),
@@ -84,7 +84,7 @@ func TestParseICMPFragNeeded(t *testing.T) {
 		{
 			name: "wrong ICMP code",
 			packet: func() []byte {
-				p := buildICMPFragNeededPacket(1400, net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 80, 80)
+				p := buildICMPFragNeededPacket(1600, net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 80, 80)
 				p[21] = 0
 				return p
 			}(),
