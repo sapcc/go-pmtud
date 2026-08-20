@@ -5,7 +5,6 @@ package relay
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -32,16 +31,4 @@ type Deps struct {
 	Log    logr.Logger
 	Client client.Client
 	Cache  cache.Cache
-}
-
-// New creates a new Relay backend based on the given backend type
-func New(backend config.Backend, d Deps) (Relay, error) {
-	switch backend {
-	case config.BackendUDP:
-		return newUDPBackend(d)
-	case config.BackendCRD:
-		return newCRDBackend(d)
-	default:
-		return nil, fmt.Errorf("unknown relay backend %q (want %q or %q)", backend, config.BackendUDP, config.BackendCRD)
-	}
 }

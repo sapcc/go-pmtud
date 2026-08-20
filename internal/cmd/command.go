@@ -27,6 +27,8 @@ import (
 	"github.com/sapcc/go-pmtud/internal/nflog"
 	"github.com/sapcc/go-pmtud/internal/node"
 	"github.com/sapcc/go-pmtud/internal/relay"
+	"github.com/sapcc/go-pmtud/internal/relay/crd"
+	"github.com/sapcc/go-pmtud/internal/relay/udp"
 	"github.com/sapcc/go-pmtud/internal/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -149,12 +151,21 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// build relay backend
-	relayBackend, err := relay.New(cfg.RelayBackend, relay.Deps{
+	deps := relay.Deps{
 		Cfg:    &cfg,
 		Log:    log.WithName("relay"),
 		Client: mgr.GetClient(),
 		Cache:  mgr.GetCache(),
-	})
+	}
+	var relayBackend relay.Relay
+	switch cfg.RelayBackend {
+	case conf.BackendUDP:
+		relayBackend, err = udp.New(deps)
+	case conf.BackendCRD:
+		relayBackend, err = crd.New(deps)
+	default:
+		return fmt.Errorf("unknown relay backend %q", cfg.RelayBackend)
+	}
 	if err != nil {
 		log.Error(err, "error creating relay backend")
 		return err

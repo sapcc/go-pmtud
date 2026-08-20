@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
-package relay
+package crd
 
 import (
 	"os"
@@ -28,6 +28,5 @@ func TestCRDSendCreatesAndDedups(t *testing.T) {
 	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
 		t.Skip("envtest assets not available")
 	}
-	// envtest integration test - skipped if KUBEBUILDER_ASSETS not set
 	// TODO: implement full envtest boilerplate when needed
 }
