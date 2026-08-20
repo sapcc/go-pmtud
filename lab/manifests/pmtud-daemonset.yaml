@@ -44,7 +44,6 @@ spec:
           command:
             - /go-pmtud
           args:
-            - --replication-port=4390
             - --nflog_group=33
             - --nodename=$(NODE_NAME)
             - --relay-backend=$(RELAY_BACKEND)

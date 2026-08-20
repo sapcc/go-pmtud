@@ -13,6 +13,18 @@ import (
 	"github.com/sapcc/go-pmtud/lab"
 )
 
+var _ = ginkgo.Describe("go-pmtud", func() {
+	for _, backend := range []string{"udp", "crd"} {
+		ginkgo.Context(backend, ginkgo.Ordered, func() {
+			ginkgo.BeforeAll(func(ctx ginkgo.SpecContext) {
+				gomega.Expect(testLab.DeployBackend(ctx, backend)).To(gomega.Succeed())
+			})
+			configSpecs(backend)
+			pmtuSpecs(backend)
+		})
+	}
+})
+
 var testLab *lab.Lab
 
 func TestE2E(t *testing.T) {
