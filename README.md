@@ -25,90 +25,88 @@ More details in this blog post by Cloudflare: [Path MTU discovery in practice](h
 
 go-pmtud replicates ICMP Destination Unreachable packets to all nodes in same Kubernetes cluster, so that the sender gets awareness that it has to use smaller packets for a particular destination.
 
-## Concept
-
-1. ICMP Destination Unreachable message (type 3 code 4 message) packets are filtered and sent to specific NFlog group by iptables.
-
-2. go-pmtud replicates ICMP packets to all nodes in same Kubernetes cluster, so that the sender pod gets awareness that it has to use smaller packets for particular destination.
+## Architecture
 
 ```
-Exec into the pod:
-
-# ip route get 192.168.100.10
-192.168.100.10 via 192.100.0.1 dev eth0 src 192.100.0.50
-    cache  expires 484sec mtu 9000  <<<< connection is failing
-
-# ip route get 192.168.100.10
-192.168.100.10 via 192.100.0.1 dev eth0 src 192.100.0.50
-    cache  expires 484sec mtu 8996  <<<< correct MTU information, connection is working
+iptables (NFLOG group 33)
+        │
+        ▼
+  nflog controller          ← captures ICMP type 3 code 4 packets
+        │
+        ▼
+  relay backend             ← distributes packets to all (on other node)
+        │
+        ▼
+  TUN device (pmtud0)       ← injects replicated packets into the network stack
 ```
+
+Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives, iptables redirects it to an NFLOG group. go-pmtud reads it, replicates it via the configured relay backend, and re-injects it on every other node through a TUN device.
+
+## Relay Backends
+
+go-pmtud supports two relay backends, selected with `--relay-backend`.
+
+### `crd` (default)
+
+Relay packets are stored as `PMTUNodeRelay` Kubernetes CRD objects. Every node watches the API server for new objects and injects those originating from other nodes. Expired objects are garbage-collected by each node for its own packets.
+
+This backend requires no direct network connectivity between nodes — it uses the Kubernetes API server as the transport. It does require the `PMTUNodeRelay` CRD to be installed in the cluster:
+
+```sh
+kubectl apply -f crd/pmtud.cloud.sap_pmtunoderelays.yaml
+```
+
+Relay objects are namespaced; set the namespace via `--relay-namespace` or the `POD_NAMESPACE` environment variable.
+
+### `udp`
+
+Relay packets are sent directly to a peer list over UDP. This is the original replication mechanism. It requires all node IPs to be provided via the node controller and needs UDP port `4390` (configurable) to be open between nodes.
+
+## CLI Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--nodename` | | Node hostname, used as a metric label |
+| `--relay-backend` | `crd` | Relay backend: `crd` or `udp` |
+| `--relay-namespace` | `$POD_NAMESPACE` | Namespace for CRD relay objects (`crd` backend only) |
+| `--relay-gc-interval` | `60s` | How often expired CRD relay objects are garbage-collected |
+| `--replication-port` | `4390` | UDP port for packet replication (`udp` backend only) |
+| `--nflog_group` | `33` | NFLOG group number |
+| `--ttl` | `1` | TTL of re-injected ICMP packets |
+| `--ignore-networks` | | Comma-separated CIDRs — packets from these sources are not relayed |
+| `--metrics_port` | `:30040` | Prometheus metrics endpoint |
+| `--health_port` | `:30041` | Healthz endpoint |
+| `--kube_context` | | Kubeconfig context to use |
+
+All flags can also be set via environment variables prefixed with `PMTUD_` (e.g. `PMTUD_NODENAME`).
 
 ## Build
 
-Build from source:
-
-```
+```sh
 go mod download
-go build -v -o /go-pmtud cmd/go-pmtud/main.go
+go build -o go-pmtud ./cmd/go-pmtud
 ```
 
-Build a Docker image:
+Docker image:
 
-```
+```sh
 docker build -t go-pmtud .
 ```
 
-## go-pmtud options
+## iptables and NFlog
 
-Following options are available:
+Each node needs an iptables rule that redirects ICMP Destination Unreachable packets to the NFLOG group. The rule **must** exclude the `pmtud0` TUN interface to prevent replication loops:
 
-1. peers - resend ICMP frag-needed packets to this peer list.
-2. iface - interface that listens for ICMP packets and resends them to other peers.
-3. nodename - node hostname, used for metric label.
-4. nflog-group - NFLOG group, set to 33 in our case.
-5. metrics-port - Port for Prometheus metrics (30040 by default).
-6. ttl - TTL of replicated ICMP packets.
-7. ignore-networks - Do not resend ICMP frag-needed packets originated from specified networks
-
-If `iface` is empty, it finds out the outgoing interface based on the default route. 
-
-## Example - go-pmtud Daemonset
-
-go-pmtud can run as a [Daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/), [example](https://github.com/sapcc/helm-charts/blob/master/system/go-pmtud).
-
-Example values.yaml:
-
-```
-images:
-  iptables:
-    repository: sapcc/iptables
-    tag: v20191226161919
-  pmtud:
-    repository: sapcc/go-pmtud
-    tag: latest
-
-iptables:
-  nflogGroup: 33
-  ignoreSourceNetworks: 192.168.100.0/24
-
-pmtud:
-  ttl: 10
-  metricsPort: 30040
-  interface: eth0
-  peers: 192.168.100.2, 192.168.100.3, 192.168.100.4, 192.168.100.5, 192.100.0.50
-```
-
-## Example - iptables and NFlog
-
-There is an iptables rule on each node that redirects ICMP Destination Unreachable packets to NFlog group nr. 33.
-
-**Important:** The rule MUST exclude the `pmtud0` TUN interface to prevent replication loops. Packets injected via the TUN device must not be recaptured by NFLOG:
-
-```
+```sh
 iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
 ```
 
-Optionally, use `--ignore-networks` to filter packets from known infrastructure networks (e.g., node subnets) as an additional safety layer.
+Optionally use `--ignore-networks` to suppress packets from known infrastructure networks (e.g. node subnets) as an additional safety layer.
+
+## Example — DaemonSet
+
+go-pmtud is designed to run as a [DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/). A Helm chart is available at [sapcc/helm-charts](https://github.com/sapcc/helm-charts/blob/master/system/go-pmtud).
 
 ## License
-This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details
+
+This project is licensed under the Apache 2.0 License — see the [LICENSE](LICENSE) file for details.
