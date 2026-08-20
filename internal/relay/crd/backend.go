@@ -25,14 +25,17 @@ import (
 	"github.com/sapcc/go-pmtud/internal/relay"
 )
 
+// backend relays ICMP frag-needed packets via Kubernetes CRD objects.
+// Each packet is stored as a PMTUNodeRelay object with a TTL; a background
+// goroutine (gcLoop) periodically deletes expired objects.
 type backend struct {
-	cfg    *config.Config
-	log    logr.Logger
-	client client.Client
-	cache  cache.Cache
-	ns     string
-	ttl    time.Duration
-	gcTick time.Duration
+	cfg    *config.Config // global config
+	log    logr.Logger    // logger
+	client client.Client  // Kubernetes client for CRUD operations on PMTUNodeRelay objects
+	cache  cache.Cache    // Kubernetes cache for watching relay objects
+	ns     string         // namespace where relay objects are stored
+	ttl    time.Duration  // TTL for created relay objects (2 * gcTick)
+	gcTick time.Duration  // interval for garbage collecting expired relay objects
 }
 
 // New creates a CRD relay backend.
