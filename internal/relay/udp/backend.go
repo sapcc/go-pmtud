@@ -72,6 +72,9 @@ func (ub *backend) Start(ctx context.Context, inject func([]byte) error) error {
 	addr := fmt.Sprintf(":%d", ub.cfg.ReplicationPort)
 	ub.log.Info("Starting UDP relay listener", "addr", addr)
 
+	// ensure the counter is reported from the start
+	metrics.InjectedPackets.WithLabelValues(ub.cfg.NodeName, "").Add(0)
+
 	listenAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
 		return fmt.Errorf("failed to resolve listen address: %w", err)
@@ -125,7 +128,7 @@ func (ub *backend) Start(ctx context.Context, inject func([]byte) error) error {
 			continue
 		}
 
-		metrics.RecvPackets.WithLabelValues(ub.cfg.NodeName, remoteAddr.IP.String()).Inc()
+		metrics.InjectedPackets.WithLabelValues(ub.cfg.NodeName, remoteAddr.IP.String()).Inc()
 		ub.log.Info("injected relayed ICMP packet", "from", remoteAddr.IP.String())
 	}
 }

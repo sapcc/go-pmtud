@@ -80,6 +80,40 @@ Relay packets are sent directly to a peer list over UDP. This is the original re
 
 All flags can also be set via environment variables prefixed with `PMTUD_` (e.g. `PMTUD_NODENAME`).
 
+## Metrics
+
+Prometheus metrics are exposed on `--metrics_port` (default `:30040`). Every metric carries a `node` label. The three stages of the relay pipeline each map to exactly one counter:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `go_pmtud_recv_packets_total` | `node`, `source_ip` | ICMP frag-needed packets **captured from the kernel** (nflog) on this node. Capture only. |
+| `go_pmtud_relay_send_total` | `node`, `result` | Relay send attempts by outcome: `created`, `deduplicated`, or `error` (`crd` backend). |
+| `go_pmtud_injected_packets_total` | `node`, `source` | Packets **received from a peer** and injected via the TUN device. `source` is the relaying peer (node name for `crd`, peer IP for `udp`). |
+
+Supporting metrics:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `go_pmtud_sent_packets_total` | `node` | Packets sent to peers (`udp` backend, per successful send). |
+| `go_pmtud_sent_packets_peer` | `node`, `peer` | Packets sent, per peer (`udp` backend). |
+| `go_pmtud_sent_error_peer_total` | `node`, `peer` | Send errors, per peer (`udp` backend). |
+| `go_pmtud_error_total` | `node` | General error counter. |
+| `go_pmtud_callback_duration_seconds` | `node` | Histogram of nflog callback duration. |
+
+Useful queries:
+
+```promql
+# ICMP frag-needed captured cluster-wide, per minute
+sum(rate(go_pmtud_recv_packets_total[1m])) * 60
+
+# CR creation rate (actual etcd writes) — crd backend
+sum(rate(go_pmtud_relay_send_total{result="created"}[1m])) * 60
+
+# Deduplication ratio — how many sends collapsed onto an existing CR
+sum(rate(go_pmtud_relay_send_total{result="deduplicated"}[1m]))
+  / sum(rate(go_pmtud_relay_send_total{result=~"created|deduplicated"}[1m]))
+```
+
 ## Build
 
 ```sh

@@ -21,7 +21,7 @@ func pmtuSpecs(backend string) {
 
 		base := make(map[string]int, len(workers))
 		for _, w := range workers[1:] {
-			n, err := testLab.RecvPackets(w)
+			n, err := testLab.InjectedPackets(w)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			base[w] = n
 		}
@@ -38,7 +38,7 @@ func pmtuSpecs(backend string) {
 
 		for _, w := range workers[1:] {
 			gomega.Eventually(func() (int, error) {
-				return testLab.RecvPackets(w)
+				return testLab.InjectedPackets(w)
 			}).
 				WithTimeout(30 * time.Second).
 				WithPolling(2 * time.Second).

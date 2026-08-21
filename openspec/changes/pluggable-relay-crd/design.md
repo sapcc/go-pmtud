@@ -123,9 +123,13 @@ inner-source IP to a node name and addressing one object to it. But
 clusters is a **pod IP**, not a node IP — go-pmtud watches nodes, not pods, so
 reverse lookup fails there. Targeting would require a pod→node watch and extra
 RBAC. Broadcast mirrors the proven UDP semantics (every peer injects; kernels that
-don't route the destination cache harmlessly). PMTU events occur on cold paths only
-(rare), so storm-avoidance targeting is a premature optimization. Add targeting
-later if metrics show volume.
+don't route the destination cache harmlessly). Measured volume on eu-de-1 (see
+Risks) is higher than the original "cold path / rare" assumption — cluster-wide
+capture peaks of ~280–390 ICMP frag-needed/min — but broadcast's cost is in the
+**per-CR watch fan-out (× N nodes)**, not the create count itself, so targeting is
+still deferred rather than required. The new `relay_send_total` / broadcast metrics
+now make this a data-driven call: add targeting if the created-CR rate × node count
+becomes a problem.
 
 **Alternatives considered**:
 - Cluster-scoped instances (task doc): more privilege, no functional gain; rejected.
@@ -182,6 +186,33 @@ kubebuilder markers. `make generate` (controller-gen, already enabled) produces 
 CRD YAML, RBAC, deepcopy, and applyconfigurations. Do not hand-write CRD YAML.
 
 **Rationale**: Repo convention; single source of truth in Go; avoids schema drift.
+
+### 8. Observability: one event, one metric
+
+**Decision**: Each stage of the relay pipeline gets exactly one counter, so no
+metric double-counts across stages or backends:
+
+| Stage | Metric | Labels | Notes |
+|---|---|---|---|
+| Captured from kernel (nflog) | `go_pmtud_recv_packets_total` | `node`, `source_ip` | Capture only. Incremented once, on the capturing node. |
+| Relay send / CR write (crd) | `go_pmtud_relay_send_total` | `node`, `result` | `result` ∈ `created` \| `deduplicated` \| `error`. Emitted by the crd backend. |
+| Received from peer & injected | `go_pmtud_injected_packets_total` | `node`, `source` | `source` = relaying peer (node name for crd, peer IP for udp). |
+
+`go_pmtud_recv_packets_total` was previously incremented in three places (capture,
+crd receive, udp receive) — conflating two opposite pipeline directions and making
+`sum(rate(recv_packets[1m]))` meaningless. It is now **capture-only**, which is what
+the existing eu-de-1 dashboard already assumed, so that query keeps working unchanged.
+
+The `result` split on `go_pmtud_relay_send_total` makes the dedup ratio a direct
+query — `deduplicated / (created + deduplicated)` — which is the key input for the
+volume analysis below (measured create rate = capture rate × the non-dedup fraction).
+The udp backend keeps its per-peer `sent_packets*`/`sent_error` counters and does not
+emit `relay_send_total` (it has no CRs and no dedup).
+
+**Rationale**: One counter per event makes each metric independently meaningful and
+lets operators measure the actual etcd write rate and dedup effectiveness — the
+numbers the CRD volume analysis (Decision 4 / Risks) now depends on rather than
+assuming.
 
 ## Testing Strategy
 
@@ -254,13 +285,37 @@ Two options, both documented in `lab/`:
 ## Risks / Trade-offs
 
 - **[CRD broadcast fan-out]** → every daemon pod injects every relayed event.
-  Harmless (kernel caches unused entries) and matches UDP; volume is low (cold
-  paths). Mitigation available (targeting) if metrics show storms.
-- **[API server latency vs UDP]** → CRD relay adds API round-trips. Acceptable:
-  PMTU events are rare and not latency-critical. UDP remains the default for
-  latency-sensitive/high-volume topologies.
+  Harmless per-packet (kernel caches unused entries) and matches UDP, but the load
+  is `created-CR-rate × N nodes` watch deliveries — this `× N` term, not the create
+  count, is the real scaling cost. Mitigation available (targeting, Decision 4) if
+  `relay_send_total` / node count show storms.
+- **[Replication volume — measured on eu-de-1]** → the original "low / cold path"
+  assumption is optimistic. On eu-de-1 (`master`, L2 build, where
+  `sum(rate(go_pmtud_recv_packets_total[1m])) * 60` is a clean cluster-wide capture
+  rate with no dedup or fan-out double-count), captures run **~10–50/min at baseline
+  with regular spikes to ~280–390/min (≈4.7–6.5 packets/s at peak)**. Implications
+  for the CRD backend:
+  - **CR creates/min** ≈ capture rate × (1 − dedup fraction). Additive across nodes
+    (one `Create` per capture, deduped by name) — **no `× N` multiplier** on creates.
+    Worst case (no dedup benefit) ≈ the capture rate above; measure the real figure
+    via `rate(go_pmtud_relay_send_total{result="created"}[1m])` and the dedup ratio
+    via `deduplicated / (created + deduplicated)`.
+  - **Watch fan-out** = creates/min **× N** watchers — the dominant term (see above).
+  - **Live object count** ≈ creates/s × TTL. Note the current code diverges from
+    Decision 5: it does **not** delete-after-inject, and its GC deletes only the
+    *own* node's expired objects, so objects live the full ~120s TTL. At peak that is
+    **~700–800 objects**, each watched by all N nodes. Re-aligning GC with Decision 5
+    (delete-after-inject + sweep any expired) would cut this sharply and is the first
+    lever if object count bites.
 - **[etcd write pressure]** → one small object per (event, srcNode); dedup by name
-  collapses duplicates; TTL GC bounds accumulation. Objects are tiny and short-lived.
+  collapses duplicates; TTL GC bounds accumulation. Objects are tiny and short-lived,
+  but at the eu-de-1 peaks above the write + watch load is non-trivial and should be
+  tracked via `relay_send_total` before assuming headroom. UDP remains the default
+  for high-volume/latency-sensitive topologies.
+- **[API server latency vs UDP]** → CRD relay adds API round-trips on the capture
+  hot path (`Send` is called from the nflog callback). Acceptable for the measured
+  volume, but not latency-critical; UDP remains the default for latency-sensitive
+  topologies.
 - **[Namespace discovery]** → relies on `POD_NAMESPACE` (downward API) or explicit
   `--relay-namespace`. Fail fast at startup if the CRD backend is selected and no
   namespace resolves.

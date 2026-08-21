@@ -91,17 +91,17 @@ func (l *Lab) FlushRouteCache(node string) error {
 	return nil
 }
 
-// RecvPackets returns the summed go_pmtud_recv_packets_total counter scraped
-// from the daemon on the node's host netns. On a peer this counts only
+// InjectedPackets returns the summed go_pmtud_injected_packets_total counter
+// scraped from the daemon on the node's host netns. On a peer this counts
 // relay-injected packets — the peer never captures a frag-needed natively (only
 // worker-A routes through the hop) — so an increase after GenerateTraffic proves
 // a replicated frag-needed was delivered and injected on that peer.
-func (l *Lab) RecvPackets(node string) (int, error) {
+func (l *Lab) InjectedPackets(node string) (int, error) {
 	out, err := dockerExec(node, "curl", "-s", "http://127.0.0.1:"+metricsPort+"/metrics")
 	if err != nil {
 		return 0, fmt.Errorf("scrape metrics on %s: %w", node, err)
 	}
-	return sumMetric(out, "go_pmtud_recv_packets_total"), nil
+	return sumMetric(out, "go_pmtud_injected_packets_total"), nil
 }
 
 // sumMetric sums the values of all non-comment samples of a Prometheus metric.

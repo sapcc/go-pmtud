@@ -69,7 +69,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
+	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.InjectedPackets, metr.RelaySend, metr.CallbackDuration)
 	cfg.PeerList = make(map[string]string)
 }
 

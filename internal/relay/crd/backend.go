@@ -74,17 +74,25 @@ func (c *backend) Send(ctx context.Context, pkt relay.RelayPacket) error {
 	}
 	err := c.client.Create(ctx, obj)
 	if apierrors.IsAlreadyExists(err) {
+		metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "deduplicated").Inc()
 		return nil
 	}
 	if err != nil {
+		metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "error").Inc()
 		metrics.Error.WithLabelValues(c.cfg.NodeName).Inc()
 		return err
 	}
-	metrics.SentPackets.WithLabelValues(c.cfg.NodeName).Inc()
+	metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "created").Inc()
 	return nil
 }
 
 func (c *backend) Start(ctx context.Context, inject func([]byte) error) error {
+	// ensure counters are reported from the start
+	metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "created").Add(0)
+	metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "deduplicated").Add(0)
+	metrics.RelaySend.WithLabelValues(c.cfg.NodeName, "error").Add(0)
+	metrics.InjectedPackets.WithLabelValues(c.cfg.NodeName, "").Add(0)
+
 	inf, err := c.cache.GetInformer(ctx, &v1alpha1.PMTUNodeRelay{})
 	if err != nil {
 		return fmt.Errorf("get informer: %w", err)
@@ -104,7 +112,7 @@ func (c *backend) Start(ctx context.Context, inject func([]byte) error) error {
 			c.log.Error(err, "inject relayed packet", "obj", r.Name)
 			return
 		}
-		metrics.RecvPackets.WithLabelValues(c.cfg.NodeName, r.Spec.SourceNode).Inc()
+		metrics.InjectedPackets.WithLabelValues(c.cfg.NodeName, r.Spec.SourceNode).Inc()
 	}
 	if _, err := inf.AddEventHandler(toolscache.ResourceEventHandlerFuncs{AddFunc: handle}); err != nil {
 		return fmt.Errorf("add event handler: %w", err)

@@ -11,6 +11,8 @@ const (
 	labelNode     = "node"
 	labelPeer     = "peer"
 	labelSourceIP = "source_ip"
+	labelSource   = "source"
+	labelResult   = "result"
 )
 
 var SentError = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -35,8 +37,24 @@ var SentPacketsPeer = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 var RecvPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name: "go_pmtud_recv_packets_total",
-	Help: "Number of received ICMP packets",
+	Help: "Number of ICMP frag-needed packets captured from the kernel (nflog) on this node",
 }, []string{labelNode, labelSourceIP})
+
+// InjectedPackets counts packets received from a peer's relay and injected into
+// the local network stack via the TUN device. The source label is the relaying
+// peer (node name for the crd backend, peer IP for the udp backend).
+var InjectedPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "go_pmtud_injected_packets_total",
+	Help: "Number of relayed ICMP packets received from a peer and injected via the TUN device",
+}, []string{labelNode, labelSource})
+
+// RelaySend counts relay send attempts by outcome. Emitted by the crd backend:
+// result="created" (a new PMTUNodeRelay object was written), "deduplicated" (an
+// identical object already existed, no write), or "error".
+var RelaySend = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "go_pmtud_relay_send_total",
+	Help: "Number of relay send attempts by outcome (created, deduplicated, error)",
+}, []string{labelNode, labelResult})
 
 var CallbackDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    "go_pmtud_callback_duration_seconds",
