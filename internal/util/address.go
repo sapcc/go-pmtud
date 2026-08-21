@@ -5,8 +5,6 @@ package util
 
 import (
 	"net"
-
-	_ "github.com/google/nftables"
 )
 
 // CalcSrcDst counts inner packet IPv4 IPs with bytes due to missing ICMP 3/4 parsing library
