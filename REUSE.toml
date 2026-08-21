@@ -28,3 +28,12 @@ path = [
 ]
 SPDX-FileCopyrightText = "SAP SE or an SAP affiliate company"
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "api/v1alpha1/zz_generated.deepcopy.go",
+  "config/rbac/role.yaml",
+  "crd/pmtud.cloud.sap_pmtunoderelays.yaml",
+]
+SPDX-FileCopyrightText = "SAP SE or an SAP affiliate company"
+SPDX-License-Identifier = "Apache-2.0"

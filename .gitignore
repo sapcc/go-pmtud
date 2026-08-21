@@ -1,4 +1,9 @@
-/main
+/go-pmtud
 /build/
 
+.vscode/
 .idea
+.pi/
+.superpowers/
+.serena
+.vscode/
