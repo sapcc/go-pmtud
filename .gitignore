@@ -1,5 +1,7 @@
 /main
 /build/
 
+.serena
+.vscode
 .idea
 .pi/
