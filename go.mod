@@ -1,6 +1,6 @@
 module github.com/sapcc/go-pmtud
 
-go 1.26
+go 1.27
 
 replace github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20250110162920-e2ed913995be
 
