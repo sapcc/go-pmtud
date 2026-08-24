@@ -113,3 +113,12 @@ func TestBuildNFTObjects(t *testing.T) {
 		t.Errorf("log key: got %d, want %d", logExpr.Key, wantKey)
 	}
 }
+
+func TestIfnamePadTooLong(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("ifnamePad should panic for names > 15 bytes")
+		}
+	}()
+	ifnamePad("this_is_a_very_long_interface_name")
+}

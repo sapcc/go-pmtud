@@ -16,6 +16,9 @@ const tableName = "pmtud"
 // ifnamePad pads a network interface name to 16 bytes (null-terminated), matching
 // the kernel's IFNAMSIZ representation used by nftables meta iifname comparisons.
 func ifnamePad(name string) []byte {
+	if len(name) > 15 {
+		panic("interface name exceeds 15 bytes: " + name)
+	}
 	b := make([]byte, 16)
 	copy(b, name+"\x00")
 	return b
