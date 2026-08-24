@@ -44,20 +44,20 @@ func TestBuildNFTObjects(t *testing.T) {
 	}
 
 	// meta iifname => reg 1
-	metaIIF, ok := rule.Exprs[0].(*expr.Meta)
-	if !ok || metaIIF.Key != expr.MetaKeyIIFNAME || metaIIF.Register != 1 {
+	metaIface, ok := rule.Exprs[0].(*expr.Meta)
+	if !ok || metaIface.Key != expr.MetaKeyIIFNAME || metaIface.Register != 1 {
 		t.Errorf("expr[0]: want Meta{Key:IIFNAME, Register:1}, got %+v", rule.Exprs[0])
 	}
 
 	// cmp eq reg 1 "eth0"
-	cmpIIF, ok := rule.Exprs[1].(*expr.Cmp)
-	if !ok || cmpIIF.Op != expr.CmpOpEq || cmpIIF.Register != 1 {
+	cmpIface, ok := rule.Exprs[1].(*expr.Cmp)
+	if !ok || cmpIface.Op != expr.CmpOpEq || cmpIface.Register != 1 {
 		t.Errorf("expr[1]: want Cmp{Op:Eq, Register:1}, got %+v", rule.Exprs[1])
 	}
 	wantIFName := ifnamePad("eth0")
 	for i, b := range wantIFName {
-		if cmpIIF.Data[i] != b {
-			t.Errorf("expr[1].Data[%d]: got %x, want %x", i, cmpIIF.Data[i], b)
+		if cmpIface.Data[i] != b {
+			t.Errorf("expr[1].Data[%d]: got %x, want %x", i, cmpIface.Data[i], b)
 		}
 	}
 
