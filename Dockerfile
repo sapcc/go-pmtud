@@ -8,6 +8,7 @@ WORKDIR /go/src/github.com/sapcc/go-pmtud
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+ENV GOTOOLCHAIN=auto
 RUN CGO_ENABLED=0 go build -v -o /go-pmtud cmd/go-pmtud/main.go
 
 FROM alpine:latest AS certs
