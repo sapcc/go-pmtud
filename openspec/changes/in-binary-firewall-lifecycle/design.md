@@ -182,3 +182,84 @@ duplicate NFLOG delivery and duplicate ICMP resends during rollout):
   already satisfied by the existing pod securityContext.
 - **`google/nftables` availability on scratch:** pure-Go, uses netlink sockets only — no
   runtime dependency; verified by the goal of a shell-free image.
+
+## Verification (manual)
+
+Two review concerns: (1) do ICMP frag-needed packets reach the *right* NFLOG group, and
+(2) is the PREROUTING rule correctly placed without interfering with kube-proxy or the CNI?
+
+**Group correctness is structural** (not coincidental): the write side
+([rule.go](../../../internal/firewall/rule.go) `buildNFTObjects` → `expr.Log{Group: nfGroup}`)
+and the read side ([internal/nflog/pmtud.go](../../../internal/nflog/pmtud.go) `nflog.Config{Group: cfg.NfGroup}`)
+both read the single shared `cfg.NfGroup`, bound once to `--nflog_group` (default 33)
+before either component starts. They cannot diverge.
+
+**Interference risk is LOW by design:** the rule's only action is a *non-terminating*,
+verdict-neutral NFLOG in a *dedicated* `ip pmtud` table. It sets no verdict, mutates
+nothing, and touches no conntrack, so it cannot drop/DNAT/reroute/reorder any other
+table's chains. kube-proxy (tables `nat`/`filter`/`mangle`, or the `kube-proxy` nftables
+table) and the common CNIs (Calico/Cilium/Flannel) all scope writes to their own named
+tables and never `nft flush ruleset` in normal operation. The one residual operational
+risk is an *external* `nft flush ruleset` (reboot / misbehaving tool) wiping the table.
+
+The commands below verify both concerns end-to-end on a representative node. Substitute
+`<iface>` (default-route interface) and `<N>` (NFLOG group, default 33).
+
+### NFLOG delivery
+
+```bash
+# (i) Rule present and correctly shaped
+sudo nft list table ip pmtud
+# expect: chain prerouting { type filter hook prerouting priority raw;
+#   iifname "<iface>" meta l4proto icmp icmp type destination-unreachable
+#   icmp code frag-needed log group <N> }
+
+# (ii) Confirm packets actually hit the rule (temporary counter — does not change match)
+sudo nft add rule ip pmtud prerouting iifname "<iface>" \
+  icmp type destination-unreachable icmp code frag-needed counter
+watch -n1 'sudo nft list table ip pmtud'   # counter packets/bytes should climb
+# ...or a live trace:
+sudo nft add rule ip pmtud prerouting meta nftrace set 1
+sudo nft monitor trace
+# Generate a real frag-needed (from a peer across a smaller-MTU path) or replay a pcap:
+ping -M do -s 2000 <node-ip>
+sudo tcpreplay -i <iface> fragneeded.pcap
+
+# (iii) Confirm the NFLOG GROUP delivers to userspace.
+# Easiest: the go-pmtud reader already consumes group <N> — watch its logs/metrics:
+kubectl -n <ns> logs ds/go-pmtud -f
+curl -s localhost:<metrics-port>/metrics | grep -E 'recv_packets|sent_packets'
+# NOTE: libpcap's "nflog:" device only reads group 0, so it will NOT see the default group 33.
+```
+
+### Interference (kube-proxy / CNI)
+
+```bash
+# Snapshot BEFORE go-pmtud starts, then AFTER, and diff
+sudo nft list tables > /tmp/nft_before.txt
+sudo iptables-save | grep -c KUBE > /tmp/kube_before.txt
+# ... start go-pmtud (Setup runs), then:
+sudo nft list tables > /tmp/nft_after.txt
+diff /tmp/nft_before.txt /tmp/nft_after.txt   # expect ONLY an added: table ip pmtud
+sudo iptables-save | grep -c KUBE             # must equal /tmp/kube_before.txt
+
+# kube-proxy / CNI chains untouched
+sudo nft list ruleset | grep -iE 'KUBE-|CILIUM|cali-'
+# Calico-nftables shares hook prerouting priority raw(-300); equal-priority base chains
+# all run independently — coexistence is expected and harmless for an observational rule:
+sudo nft list ruleset | grep -iE 'hook prerouting priority (raw|-300)'
+
+# Dataplane sanity — connectivity and conntrack stay healthy
+kubectl run t --image=busybox --restart=Never -it --rm -- wget -qO- http://<service>:<port>
+conntrack -S     # no insert_failed/drop spikes attributable to pmtud
+kubectl get nodes  # node stays Ready
+
+# Teardown removes the whole dedicated table cleanly
+sudo nft delete table ip pmtud
+```
+
+> An automated, self-skipping netns integration test (apply the real rule in a throwaway
+> namespace, inject a crafted ICMP type-3/code-4 frame, assert NFLOG delivery, with a
+> type-3/code-3 negative control) can be added later behind a `PMTUD_INTEGRATION=1` gate in
+> a privileged CI lane. Not required for correctness — the group wiring is structural and
+> the manual ladder above closes both concerns empirically.
