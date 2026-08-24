@@ -82,6 +82,7 @@ func (m *Manager) setupNFT() error {
 	conn.DelTable(table)
 	if err := conn.Flush(); err != nil {
 		// Ignore "no such table" — it just means we're starting fresh.
+		// use a logger with higher verbosity level to avoid spamming; emit only in debug/trace mode.
 		m.log.V(1).Info("pre-cleanup flush (ignore if table didn't exist)", "err", err)
 	}
 	// Fresh connection after the delete flush.
