@@ -1,8 +1,10 @@
-# In-binary firewall lifecycle (drop init container + preStop)
+<!--
+SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 
-- **Date:** 2026-08-21
-- **Branch:** `d053727/runtime-image-from-scratch`
-- **Status:** Approved (design)
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# In-binary firewall lifecycle (drop init container + preStop)
 
 ## Problem
 

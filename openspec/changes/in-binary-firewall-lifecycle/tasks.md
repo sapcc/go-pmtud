@@ -1,6 +1,10 @@
-# In-binary Firewall Lifecycle Implementation Plan
+<!--
+SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# In-binary Firewall Lifecycle — Tasks
 
 **Goal:** Move NFLOG rule creation/deletion and `rp_filter` sysctl setup into the go-pmtud binary so the `scratch` runtime image needs no shell, and remove the init container and `preStop` hook from the helm chart.
 
