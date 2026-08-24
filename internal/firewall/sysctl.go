@@ -16,5 +16,5 @@ import (
 // fsRoot is "/" in production; injectable for tests.
 func writeSysctl(fsRoot, path string, value int) error {
 	full := filepath.Join(fsRoot, filepath.FromSlash(path))
-	return os.WriteFile(full, []byte(fmt.Sprintf("%d", value)), 0644)
+	return os.WriteFile(full, fmt.Appendf(nil, "%d", value), 0644)
 }

@@ -109,13 +109,15 @@ This means a node will not re-send already retransmitted ICMP messages. It will 
 
 ## Container Lifecycle
 
-As of the `scratch` runtime image migration, the go-pmtud binary manages its own firewall lifecycle:
+The binary manages firewall state during its runtime:
 
-- **Startup (implicit):** On startup, the binary sets `net.ipv4.conf.all.rp_filter=0` and `net.ipv4.conf.<interface>.rp_filter=0` for all configured interfaces, then creates an nftables rule in the `raw` chain (priority -300, prerouting hook) that copies ICMP type 3 code 4 packets on the default-route interface to the configured NFLOG group.
+**On startup** ([`internal/cmd/command.go:96-105`](internal/cmd/command.go#L96-L105)): The binary calls `firewall.Manager.Setup()`, which:
+- Sets `net.ipv4.conf.all.rp_filter=0` and `net.ipv4.conf.<interface>.rp_filter=0` for each configured interface
+- Creates an nftables rule in the `raw` chain (priority -300, prerouting hook) that copies ICMP type 3 code 4 packets from the default-route interface to the configured NFLOG group
 
-- **Shutdown:** On SIGTERM, the binary deletes the nftables rule via its `preStop`-equivalent cleanup in a deferred teardown function. This runs within the pod's termination grace period.
+**On shutdown**: A deferred `firewall.Manager.Teardown()` call removes the nftables rule when the binary receives SIGTERM, ensuring cleanup within the pod's termination grace period.
 
-The helm chart no longer requires an init container or a `preStop` lifecycle hook — the binary handles both setup and teardown. This allows the runtime image to be built `FROM scratch`, eliminating dependencies on shell, `iptables`, or `ip` binaries.
+See [`internal/firewall/`](internal/firewall/) for the implementation (Linux only; non-Linux platforms get a no-op stub).
 
 ## License
 This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details
