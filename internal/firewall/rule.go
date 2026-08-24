@@ -28,6 +28,7 @@ func ifnamePad(name string) []byte {
 // NFLOG rule. No kernel I/O; safe to call in tests.
 //
 // Equivalent shell: iptables-nft -t raw -I PREROUTING -i <iifname> -p icmp
+//
 //	--icmp-type 3/4 -j NFLOG --nflog-group <nfGroup>
 func buildNFTObjects(iifname string, nfGroup uint16) (*nftables.Table, *nftables.Chain, *nftables.Rule) {
 	table := &nftables.Table{
