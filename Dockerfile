@@ -2,17 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
+ENV GOTOOLCHAIN=auto
 WORKDIR /go/src/github.com/sapcc/go-pmtud
-ADD go.mod go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
-ADD . .
-RUN go build -v -o /go-pmtud cmd/go-pmtud/main.go
+COPY . .
+RUN CGO_ENABLED=0 go build -v -o /go-pmtud cmd/go-pmtud/main.go
 
-FROM ubuntu:noble
+FROM alpine:latest AS certs
+RUN apk add --no-cache ca-certificates
+
+FROM scratch
 LABEL source_repository="https://github.com/sapcc/go-pmtud"
-RUN apt-get update && apt-get install -y \
-    iptables iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go-pmtud /go-pmtud
+ENTRYPOINT ["/go-pmtud"]

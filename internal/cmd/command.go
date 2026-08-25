@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	conf "github.com/sapcc/go-pmtud/internal/config"
+	"github.com/sapcc/go-pmtud/internal/firewall"
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/nflog"
 	"github.com/sapcc/go-pmtud/internal/node"
@@ -91,6 +92,18 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		o.Development = true
 	}).WithName("runRoot")
 	ctrl.SetLogger(log)
+
+	fw := firewall.New(&cfg, log.WithName("firewall"))
+	if err := fw.Setup(); err != nil {
+		log.Error(err, "firewall setup failed")
+		return err
+	}
+	defer func() {
+		if err := fw.Teardown(); err != nil {
+			log.Error(err, "firewall teardown failed")
+		}
+	}()
+
 	managerOpts := manager.Options{
 		Metrics:                metricsserver.Options{BindAddress: cfg.MetricsPort},
 		HealthProbeBindAddress: cfg.HealthPort,
@@ -98,12 +111,12 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	restConfig, err := config.GetConfigWithContext(cfg.KubeContext)
 	if err != nil {
 		log.Error(err, "error getting kube config. Exiting.")
-		os.Exit(1)
+		return err
 	}
 	mgr, err := manager.New(restConfig, managerOpts)
 	if err != nil {
-		log.Error(err, "error creating manager. Exiting.")
-		os.Exit(1)
+		log.Error(err, "error creating manager.")
+		return err
 	}
 
 	// add node-controller

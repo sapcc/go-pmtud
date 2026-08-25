@@ -107,5 +107,17 @@ There is an iptables rule on each node that redirects ICMP Destination Unreachab
 Important: we need ignore packets from summarized source networks of all nodes in the local cluster to avoid re-sending loops. Use `ignore-networks` option for this. 
 This means a node will not re-send already retransmitted ICMP messages. It will only resend messages that are usually originated by routers on the path. 
 
+## Container Lifecycle
+
+The binary manages firewall state during its runtime:
+
+**On startup** ([`internal/cmd/command.go:96-105`](internal/cmd/command.go#L96-L105)): The binary calls `firewall.Manager.Setup()`, which:
+- Sets `net.ipv4.conf.all.rp_filter=0` and `net.ipv4.conf.<interface>.rp_filter=0` for each configured interface
+- Creates an nftables rule in the `raw` chain (priority -300, prerouting hook) that copies ICMP type 3 code 4 packets from the default-route interface to the configured NFLOG group
+
+**On shutdown**: A deferred `firewall.Manager.Teardown()` call removes the nftables rule when the binary receives SIGTERM, ensuring cleanup within the pod's termination grace period.
+
+See [`internal/firewall/`](internal/firewall/) for the implementation (Linux only; non-Linux platforms get a no-op stub).
+
 ## License
 This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details
