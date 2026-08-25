@@ -588,7 +588,7 @@ git commit -m "feat(cmd): wire firewall.Manager Setup/Teardown around mgr.Start"
 
 ### Task 5: Helm chart — remove init container, preStop, configmap, and iptables image
 
-Both files live in `/Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/`.
+Both files live in `/system/go-pmtud/`.
 
 **Files:**
 - Modify: `templates/go-pmtud-daemonset.yaml`
@@ -651,10 +651,10 @@ Delete:
 - [ ] **Step 4: Delete template files no longer needed**
 
 ```bash
-rm /Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/go-pmtud-configmap.yaml
-rm /Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/etc/_iptables_init.tpl
-rm /Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/etc/_iptables_stop.tpl
-rmdir /Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/etc
+rm /system/go-pmtud/templates/go-pmtud-configmap.yaml
+rm /system/go-pmtud/templates/etc/_iptables_init.tpl
+rm /system/go-pmtud/templates/etc/_iptables_stop.tpl
+rmdir /system/go-pmtud/templates/etc
 ```
 
 - [ ] **Step 5: Remove `images.iptables` from `values.yaml`**
@@ -677,17 +677,17 @@ images:
 - [ ] **Step 6: Verify the daemonset template is valid YAML (no helm rendering needed)**
 
 ```bash
-python3 -c "import yaml, open; yaml.safe_load(open('/Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/go-pmtud-daemonset.yaml').read())" 2>&1 || echo "Note: helm template expressions cause YAML parse errors; check manually for structural issues instead"
+python3 -c "import yaml, open; yaml.safe_load(open('/system/go-pmtud/templates/go-pmtud-daemonset.yaml').read())" 2>&1 || echo "Note: helm template expressions cause YAML parse errors; check manually for structural issues instead"
 # For a structural sanity check without helm:
 grep -n 'initContainer\|preStop\|iptables-init\|iptables-stop\|pmtud-configmap\|images.iptables' \
-  /Users/D053727/SAPDevelop/git/sapcc-helm-charts/system/go-pmtud/templates/go-pmtud-daemonset.yaml
+  /system/go-pmtud/templates/go-pmtud-daemonset.yaml
 # Expected: no output
 ```
 
 - [ ] **Step 7: Commit in the helm-charts repo**
 
 ```bash
-cd /Users/D053727/SAPDevelop/git/sapcc-helm-charts
+cd
 git add system/go-pmtud/
 git commit -m "feat(go-pmtud): remove init container and preStop hook (rule lifecycle now in binary)"
 ```
