@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 ENV GOTOOLCHAIN=auto
 WORKDIR /go/src/github.com/sapcc/go-pmtud
