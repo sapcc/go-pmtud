@@ -14,7 +14,7 @@ import (
 )
 
 var _ = ginkgo.Describe("go-pmtud", func() {
-	for _, backend := range []string{"l2", "udp"} {
+	for _, backend := range []string{"legacy", "l2", "udp"} {
 		ginkgo.Context(backend, ginkgo.Ordered, func() {
 			ginkgo.BeforeAll(func(ctx ginkgo.SpecContext) {
 				gomega.Expect(testLab.DeployBackend(ctx, backend)).To(gomega.Succeed())

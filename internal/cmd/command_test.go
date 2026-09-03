@@ -22,3 +22,34 @@ func TestL2FlagsRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestLegacyCLIFlagDefaults pins every flag that existed before --relay-backend
+// was introduced. A regression (removal or default change) would silently break
+// existing deployments that rely on the old invocation.
+func TestLegacyCLIFlagDefaults(t *testing.T) {
+	tests := []struct {
+		flag    string
+		defVal  string
+	}{
+		{"nodename", ""},
+		{"metrics_port", ":30040"},
+		{"health_port", ":30041"},
+		{"nflog_group", "33"},
+		{"ttl", "1"},
+		{"kube_context", ""},
+		{"iface_names", "[]"},
+		{"iface_mtu", "1500"},
+		{"node-timeout-minutes", "5"},
+		{"arp-timeout-seconds", "1"},
+	}
+	for _, tc := range tests {
+		f := rootCmd.PersistentFlags().Lookup(tc.flag)
+		if f == nil {
+			t.Errorf("flag %q no longer registered (backward-compat breakage)", tc.flag)
+			continue
+		}
+		if f.DefValue != tc.defVal {
+			t.Errorf("flag %q default = %q, want %q (backward-compat breakage)", tc.flag, f.DefValue, tc.defVal)
+		}
+	}
+}

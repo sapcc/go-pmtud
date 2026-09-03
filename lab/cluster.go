@@ -127,8 +127,25 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 	if err != nil {
 		return fmt.Errorf("read daemonset: %w", err)
 	}
-	// Inject literal backend value so the k8s spec shows --relay-backend=<backend>
-	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", backend)
+
+	// "legacy" simulates a pre-feature manifest: use the l2 iptables rule but
+	// strip --relay-backend entirely so the daemon defaults to l2 on its own.
+	iptablesBackend := backend
+	if backend == "legacy" {
+		iptablesBackend = "l2"
+	}
+	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", iptablesBackend)
+	if backend == "legacy" {
+		lines := strings.Split(patched, "\n")
+		kept := lines[:0]
+		for _, l := range lines {
+			if !strings.Contains(l, "--relay-backend=") {
+				kept = append(kept, l)
+			}
+		}
+		patched = strings.Join(kept, "\n")
+	}
+
 	f, err := os.CreateTemp("", "daemonset-*.yaml")
 	if err != nil {
 		return err

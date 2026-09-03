@@ -19,8 +19,20 @@ func configSpecs(backend string) {
 			client.ObjectKey{Namespace: "kube-system", Name: "go-pmtud"}, &ds)).
 			To(gomega.Succeed())
 
+		args := ds.Spec.Template.Spec.Containers[0].Args
+
+		if backend == "legacy" {
+			// Old manifests have no --relay-backend flag at all; the daemon must
+			// default to l2 without it being present.
+			for _, arg := range args {
+				gomega.Expect(arg).NotTo(gomega.HavePrefix("--relay-backend="),
+					"legacy manifest must not carry --relay-backend (daemon should default to l2)")
+			}
+			return
+		}
+
 		found := false
-		for _, arg := range ds.Spec.Template.Spec.Containers[0].Args {
+		for _, arg := range args {
 			if arg == "--relay-backend="+backend {
 				found = true
 				break
