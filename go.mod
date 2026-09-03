@@ -7,7 +7,7 @@ replace github.com/mdlayher/arp => github.com/sapcc/arp v0.0.0-20250110162920-e2
 require (
 	github.com/florianl/go-nflog/v2 v2.2.0
 	github.com/go-logr/logr v1.4.3
-	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
+	github.com/mdlayher/arp v0.0.0-20260528070854-93566ba168e9
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/packet v1.1.2
 	github.com/prometheus/client_golang v1.23.2
