@@ -12,10 +12,8 @@ mkShell {
     go_1_27
     golangci-lint
     gotools # goimports
-    kubernetes-controller-tools # controller-gen
     renovate
     reuse
-    setup-envtest
     typos
     # keep this line if you use bash
     bashInteractive
