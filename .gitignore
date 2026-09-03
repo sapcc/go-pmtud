@@ -1,4 +1,7 @@
 /main
+/go-pmtud
 /build/
 
 .idea
+.vscode/
+.serena/
