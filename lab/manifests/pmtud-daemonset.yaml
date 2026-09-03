@@ -20,32 +20,6 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       tolerations:
         - operator: Exists
-      initContainers:
-        - name: iptables-setup
-          image: alpine:3.20
-          command:
-            - sh
-            - -c
-            - |
-              apk add --no-cache iptables
-              if [ "$(RELAY_BACKEND)" = "l2" ]; then
-                # L2 backend: capture on the primary inter-node interface only.
-                # In Kind (single eth0) replicated frames arrive on the same
-                # interface, so peers relay back — that loop proves delivery.
-                iptables -t raw -C PREROUTING -i eth0 -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33 2>/dev/null || \
-                iptables -t raw -A PREROUTING -i eth0 -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
-              else
-                # UDP backend: exclude the TUN device (pmtud0) to prevent
-                # re-capture of injected packets.
-                iptables -t raw -C PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33 2>/dev/null || \
-                iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
-              fi
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - NET_RAW
       containers:
         - name: go-pmtud
           image: go-pmtud:local

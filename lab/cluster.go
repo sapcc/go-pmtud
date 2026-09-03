@@ -128,13 +128,14 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 		return fmt.Errorf("read daemonset: %w", err)
 	}
 
-	// "legacy" simulates a pre-feature manifest: use the l2 iptables rule but
-	// strip --relay-backend entirely so the daemon defaults to l2 on its own.
-	iptablesBackend := backend
+	// "legacy" simulates a pre-feature manifest: substitute l2 for the
+	// $(RELAY_BACKEND) placeholder, then strip --relay-backend entirely so the
+	// daemon defaults to l2 on its own (testing the upgrade path).
+	backendValue := backend
 	if backend == "legacy" {
-		iptablesBackend = "l2"
+		backendValue = "l2"
 	}
-	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", iptablesBackend)
+	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", backendValue)
 	if backend == "legacy" {
 		lines := strings.Split(patched, "\n")
 		kept := lines[:0]
