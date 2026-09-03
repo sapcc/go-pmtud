@@ -58,12 +58,13 @@ The lab simulates a **cross-zone L3 boundary** within a single cluster:
 cd lab/
 
 # Go e2e test suite (recommended)
-make e2e                          # provision + test + teardown
-LAB_KEEP=1 make e2e-keep         # keep lab after test (manual inspection)
+make e2e           # provision + test (legacy, l2, udp) + teardown
+make e2e-keep      # same but keep lab after for manual inspection
 
 # Observability (manual inspection only)
-make observe-router              # tcpdump ICMP packets on router
-make status                       # check lab status
+make observe-node        # tcpdump ICMP packets on a worker node
+make observe-replication # tcpdump UDP 4390 replication traffic
+make status              # check lab status
 ```
 
 ## Go e2e Test Suite
@@ -94,8 +95,10 @@ make e2e GINKGO_FLAGS="-v --focus=legacy"
 |--------|-------------|
 | `e2e` | Run full e2e suite: provision, test (legacy + l2 + udp), teardown |
 | `e2e-keep` | Run tests but keep lab for manual inspection |
-| `observe-router` | tcpdump ICMP packets on router |
+| `observe-node` | tcpdump ICMP frag-needed on a cluster node |
+| `observe-replication` | tcpdump UDP 4390 replication traffic |
 | `status` | Show lab component status |
+| `down` | Delete the Kind cluster |
 
 ## Simulating the MTU Boundary
 
@@ -107,8 +110,8 @@ The lab uses the control-plane node as a relay hop with reduced MTU. Setup:
 4. **Deploy** loads locally-built go-pmtud images and applies DaemonSet + RBAC
 5. **Test** uses `ping -M do -s 1400` or sustained transfers to generate packets exceeding the control-plane's MTU
 6. Control-plane interface sends ICMP fragmentation-needed back to the source
-7. go-pmtud captures via NFLOG, replicates to peers via the relay backend (UDP in this lab)
-8. Peers inject via TUN device (`pmtud0`) → kernel PMTU cache updated
+7. go-pmtud captures via NFLOG and replicates to peers via the active relay backend
+8. For `udp`: peers inject via TUN device (`pmtud0`) → kernel PMTU cache updated. For `l2`: peers receive natively via raw Ethernet → kernel processes the frame directly
 
 ## Relay Backends
 
