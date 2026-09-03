@@ -12,9 +12,12 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/sapcc/go-pmtud/internal/config"
-	"github.com/sapcc/go-pmtud/internal/metrics"
+	metrics "github.com/sapcc/go-pmtud/internal/metrics"
 )
 
+// GetReplicationInterface selects the replication interface for the L2
+// backend: the first name in cfg.InterfaceNames whose interface MTU matches
+// cfg.InterfaceMtu. Errors if no configured interface matches.
 func GetReplicationInterface(cfg *config.Config, log logr.Logger) error {
 	interFaces, err := net.Interfaces()
 	if err != nil {

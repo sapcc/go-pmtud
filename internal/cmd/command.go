@@ -6,9 +6,8 @@ package cmd
 import (
 	goflag "flag"
 	"fmt"
-	"math/rand"
+	"net"
 	"os"
-	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
@@ -25,6 +24,9 @@ import (
 	metr "github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/nflog"
 	"github.com/sapcc/go-pmtud/internal/node"
+	"github.com/sapcc/go-pmtud/internal/relay"
+	"github.com/sapcc/go-pmtud/internal/relay/l2"
+	"github.com/sapcc/go-pmtud/internal/relay/udp"
 	"github.com/sapcc/go-pmtud/internal/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -47,42 +49,53 @@ var cfg = conf.Config{}
 func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("PMTUD")
-	rootCmd.PersistentFlags().StringSliceVar(&cfg.InterfaceNames, "iface_names", nil, "Replication interface names to work on")
 	rootCmd.PersistentFlags().StringVar(&cfg.NodeName, "nodename", "", "Node hostname")
-	rootCmd.PersistentFlags().IntVar(&cfg.InterfaceMtu, "iface_mtu", 1500, "MTU size that replication interface should have")
-	// rootCmd.PersistentFlags().StringSliceVar(&cfg.Peers, "peers", nil, "Resend ICMP frag-needed packets to this peer list (comma separated)")
 	rootCmd.PersistentFlags().StringVar(&cfg.MetricsPort, "metrics_port", ":30040", "Port for Prometheus metrics")
 	rootCmd.PersistentFlags().StringVar(&cfg.HealthPort, "health_port", ":30041", "Port for healthz")
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
 	rootCmd.PersistentFlags().IntVar(&cfg.TimeToLive, "ttl", 1, "TTL for resent packets")
-	rootCmd.PersistentFlags().IntVar(&cfg.ArpCacheTimeoutMinutes, "node-timeout-minutes", 5, "Timeout in minutes for node arp entry")
-	rootCmd.PersistentFlags().IntVar(&cfg.ArpRequestTimeoutSeconds, "arp-timeout-seconds", 1, "Timeout in seconds for node arp request")
+	rootCmd.PersistentFlags().IntVar(&cfg.ReplicationPort, "replication-port", 4390, "UDP port for ICMP packet replication between nodes. Only used when relay-backend=udp")
+	rootCmd.PersistentFlags().StringSliceVar(&cfg.IgnoreNetworksRaw, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma-separated CIDRs)")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
+	cfg.RelayBackend = conf.BackendL2
+	rootCmd.PersistentFlags().Var(&cfg.RelayBackend, "relay-backend", "Relay backend: l2 (default) or udp")
+	rootCmd.PersistentFlags().StringSliceVar(&cfg.InterfaceNames, "iface_names", nil, "Replication interface names to work on (L2 backend)")
+	rootCmd.PersistentFlags().IntVar(&cfg.InterfaceMtu, "iface_mtu", 1500, "MTU size that the replication interface should have (L2 backend)")
+	rootCmd.PersistentFlags().IntVar(&cfg.ArpCacheTimeoutMinutes, "node-timeout-minutes", 5, "Timeout in minutes for a cached node ARP entry (L2 backend)")
+	rootCmd.PersistentFlags().IntVar(&cfg.ArpRequestTimeoutSeconds, "arp-timeout-seconds", 1, "Timeout in seconds for an ARP request (L2 backend)")
 	rootCmd.PersistentFlags().AddGoFlagSet(goflag.CommandLine)
 	err := viper.BindPFlags(rootCmd.PersistentFlags())
 	if err != nil {
 		os.Exit(1)
 	}
 
-	randSource := rand.NewSource(time.Now().UnixNano())
-	rng := rand.New(randSource) //nolint:gosec // Ignoring G404: Use of weak random number generator (math/rand instead of crypto/rand)
-	cfg.RandDelay = rng.Intn(1000) + 1000
-
-	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.ArpResolveError, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.CallbackDuration)
-	cfg.PeerList = make(map[string]conf.PeerEntry)
+	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.InjectedPackets, metr.CallbackDuration)
+	cfg.PeerList = make(map[string]string)
 }
 
 func preRunRootCmd(cmd *cobra.Command, args []string) error {
 	log := zap.New(func(o *zap.Options) {
 		o.Development = true
 	}).WithName("preRunRoot")
-	err := util.GetReplicationInterface(&cfg, log)
+	err := util.GetDefaultInterface(&cfg, log)
 	if err != nil {
 		return err
 	}
-	err = util.GetDefaultInterface(&cfg, log)
-	if err != nil {
-		return err
+	if cfg.RelayBackend == conf.BackendL2 {
+		if len(cfg.InterfaceNames) == 0 {
+			return fmt.Errorf("relay-backend=l2 requires --iface_names")
+		}
+		if err := util.GetReplicationInterface(&cfg, log); err != nil {
+			return err
+		}
+	}
+	// Parse ignore-networks CIDRs
+	for _, cidr := range cfg.IgnoreNetworksRaw {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("invalid ignore-network CIDR %q: %w", cidr, err)
+		}
+		cfg.IgnoreNetworks = append(cfg.IgnoreNetworks, ipNet)
 	}
 	return nil
 }
@@ -137,14 +150,41 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// build relay backend
+	deps := relay.Deps{
+		Cfg: &cfg,
+		Log: log.WithName("relay"),
+	}
+	var relayBackend relay.Relay
+	switch cfg.RelayBackend {
+	case conf.BackendL2:
+		relayBackend, err = l2.New(deps)
+	case conf.BackendUDP:
+		relayBackend, err = udp.New(deps)
+	default:
+		return fmt.Errorf("unknown relay backend %q", cfg.RelayBackend)
+	}
+	if err != nil {
+		log.Error(err, "error creating relay backend")
+		return err
+	}
+
 	// add nfLog controller
 	nfc := nflog.Controller{
-		Log: log.WithName("nfLog-controller"),
-		Cfg: &cfg,
+		Log:   log.WithName("nfLog-controller"),
+		Cfg:   &cfg,
+		Relay: relayBackend,
 	}
 	err = mgr.Add(&nfc)
 	if err != nil {
 		log.Error(err, "error adding nfLog-controller")
+		return err
+	}
+
+	// the relay backend is itself a manager.Runnable (Start(ctx))
+	err = mgr.Add(relayBackend)
+	if err != nil {
+		log.Error(err, "error adding relay backend")
 		return err
 	}
 
