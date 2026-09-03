@@ -48,8 +48,8 @@ type Config struct {
 	ArpCacheTimeoutMinutes   int
 	ArpRequestTimeoutSeconds int
 
-	PeerMutex        sync.Mutex
-	PeerList         map[string]string // nodeName → IP
+	PeerMutex sync.Mutex
+	PeerList  map[string]string // nodeName → IP
 
 	IgnoreNetworksRaw []string     // raw CIDR strings from CLI
 	IgnoreNetworks    []*net.IPNet // parsed CIDRs

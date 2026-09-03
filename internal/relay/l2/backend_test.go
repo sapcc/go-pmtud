@@ -58,7 +58,7 @@ type fixedResolver struct{}
 func (fixedResolver) Resolve(ip string) (net.HardwareAddr, error) {
 	// Derive a stable, unique MAC per IP for assertions.
 	sum := byte(0)
-	for i := 0; i < len(ip); i++ {
+	for i := range len(ip) {
 		sum += ip[i]
 	}
 	return net.HardwareAddr{0x02, 0, 0, 0, 0, sum}, nil
@@ -66,7 +66,7 @@ func (fixedResolver) Resolve(ip string) (net.HardwareAddr, error) {
 
 func newTestBackend() (*backend, *fakeConn) {
 	fc := &fakeConn{}
-	src, _ := net.ParseMAC("11:22:33:44:55:66")
+	src := mustParseMAC("11:22:33:44:55:66")
 	cfg := &config.Config{
 		NodeName: "test-node",
 		PeerList: map[string]string{},

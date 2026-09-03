@@ -11,9 +11,17 @@ import (
 	"github.com/mdlayher/ethernet"
 )
 
+func mustParseMAC(s string) net.HardwareAddr {
+	mac, err := net.ParseMAC(s)
+	if err != nil {
+		panic(err)
+	}
+	return mac
+}
+
 func TestBuildFrameRoundTrip(t *testing.T) {
-	src, _ := net.ParseMAC("11:22:33:44:55:66")
-	dst, _ := net.ParseMAC("aa:bb:cc:dd:ee:ff")
+	src := mustParseMAC("11:22:33:44:55:66")
+	dst := mustParseMAC("aa:bb:cc:dd:ee:ff")
 	payload := []byte{0x45, 0x00, 0x00, 0x1c} // truncated IPv4 header bytes
 
 	raw, err := buildFrame(src, dst, payload)
