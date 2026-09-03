@@ -28,8 +28,8 @@ func TestL2FlagsRegistered(t *testing.T) {
 // existing deployments that rely on the old invocation.
 func TestLegacyCLIFlagDefaults(t *testing.T) {
 	tests := []struct {
-		flag    string
-		defVal  string
+		flag   string
+		defVal string
 	}{
 		{"nodename", ""},
 		{"metrics_port", ":30040"},
