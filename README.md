@@ -34,13 +34,14 @@ iptables (NFLOG group 33)
   nflog controller          ← captures ICMP type 3 code 4 packets
         │
         ▼
-  relay backend             ← distributes packets to all (on other node)
+  relay backend             ← distributes packets to peer nodes
         │
-        ▼
-  TUN device (pmtud0)       ← injects replicated packets into the network stack
+        ├─ l2 (default)     ← raw Ethernet frame → peer kernel receives natively
+        │
+        └─ udp              ← UDP unicast → TUN device (pmtud0) → kernel receives
 ```
 
-Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives, iptables redirects it to an NFLOG group. go-pmtud reads it, replicates it via the configured relay backend, and re-injects it on every other node. The `udp` backend injects via the `pmtud0` TUN device; the `l2` backend sends raw Ethernet frames and requires no TUN device.
+Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives, iptables redirects it to an NFLOG group. go-pmtud reads it and replicates it via the configured relay backend. The `l2` backend sends raw Ethernet frames over the replication interface; the `udp` backend sends UDP unicast and injects received packets via the `pmtud0` TUN device.
 
 ## Relay Backends
 
@@ -120,6 +121,28 @@ sum(rate(go_pmtud_recv_packets_total[1m])) * 60
 # Packets injected from peers cluster-wide, per minute
 sum(rate(go_pmtud_injected_packets_total[1m])) * 60
 ```
+
+## Testing
+
+### Unit tests
+
+```sh
+go test ./...
+```
+
+### E2E tests (Kind)
+
+The e2e suite provisions a single Kind cluster, deploys go-pmtud, and runs three backend contexts in order — `legacy` (no `--relay-backend` flag, validating the upgrade path), `l2` (raw Ethernet), and `udp` (UDP unicast across L3 boundaries).
+
+Requirements: Docker, [kind](https://kind.sigs.k8s.io/) v0.20+, kubectl.
+
+```sh
+cd lab/
+make e2e           # provision + test all three backends + teardown
+make e2e-keep      # same but keep the cluster for manual inspection
+```
+
+See [`lab/README.md`](lab/README.md) for Ginkgo flags, teardown, and manual inspection.
 
 ## Build
 

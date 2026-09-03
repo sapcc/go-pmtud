@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # go-pmtud Local Lab
 
-A reproducible Kind-based lab for testing go-pmtud ICMP replication — primarily validates the UDP backend across L3 boundaries with MTU mismatches, but the cluster can also be used to test the L2 backend within the same VLAN.
+A reproducible Kind-based lab for testing go-pmtud ICMP replication. The suite runs three backend contexts in order — `legacy` (no `--relay-backend` flag, proving the upgrade path), `l2` (raw Ethernet), and `udp` (UDP unicast across L3 boundaries) — against the same single Kind cluster.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ A reproducible Kind-based lab for testing go-pmtud ICMP replication — primaril
 ```
 
 Single-cluster topology with control-plane as the relay hop. Packets exceeding the control-plane's MTU (1280) with DF bit set trigger ICMP type 3 code 4 (fragmentation needed).
-go-pmtud captures these via NFLOG and replicates to peer nodes via the configured relay backend (the lab uses UDP port 4390).
+go-pmtud captures these via NFLOG and replicates to peer nodes via the configured relay backend. The suite redeploys the DaemonSet for each backend context.
 
 ## How It Works
 
@@ -43,7 +43,7 @@ The lab simulates a **cross-zone L3 boundary** within a single cluster:
 - **Worker nodes:** Full MTU (9000) for intra-zone communication
 - **Trigger:** Packets from workers destined through the control-plane that exceed 1280 bytes with DF bit set prompt ICMP fragmentation-needed
 - **Native capture:** The originating worker receives the ICMP directly via NFLOG
-- **Relay test:** Peer workers rely on go-pmtud's relay to propagate the PMTU constraint; the lab deploys with `--relay-backend=udp`, proving the UDP transport works end-to-end without L2 reachability
+- **Relay test:** Peer workers rely on go-pmtud's relay to propagate the PMTU constraint; the suite redeploys for each backend (`legacy`, `l2`, `udp`) and asserts replication end-to-end for each
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ make status                       # check lab status
 
 ## Go e2e Test Suite
 
-The `e2e`, `e2e-reuse`, and `e2e-keep` targets run the Go test suite with Ginkgo. They handle provisioning, testing the UDP relay backend, and cleanup.
+The `e2e` and `e2e-keep` targets run the Go test suite with Ginkgo. The suite provisions the cluster, then runs three ordered backend contexts — `legacy`, `l2`, `udp` — and tears down.
 
 **Default (full run):**
 ```bash
@@ -78,22 +78,21 @@ Provisions lab, runs all e2e tests (20m timeout), tears down.
 
 **Manual inspection (keep lab):**
 ```bash
-LAB_KEEP=1 make e2e-keep
+make e2e-keep
 ```
 Runs tests but keeps the lab running after completion — inspect clusters, logs, or state manually. Clean up with `make down`.
 
 **Custom Ginkgo flags:**
 ```bash
 make e2e GINKGO_FLAGS="-v --fail-fast"
-make e2e-reuse GINKGO_FLAGS="-v --focus=UDP"
+make e2e GINKGO_FLAGS="-v --focus=legacy"
 ```
 
 ## Makefile Targets
 
 | Target | Description |
 |--------|-------------|
-| `e2e` | Run full e2e suite: provision, test, teardown |
-| `e2e-reuse` | Skip provisioning, reuse existing lab (fast iteration) |
+| `e2e` | Run full e2e suite: provision, test (legacy + l2 + udp), teardown |
 | `e2e-keep` | Run tests but keep lab for manual inspection |
 | `observe-router` | tcpdump ICMP packets on router |
 | `status` | Show lab component status |
@@ -113,7 +112,7 @@ The lab uses the control-plane node as a relay hop with reduced MTU. Setup:
 
 ## Relay Backends
 
-The lab deploys go-pmtud with `--relay-backend=udp` to demonstrate cross-L3 replication. The same cluster can be used to test the `l2` backend if all nodes share L2 adjacency.
+The suite tests all three backend scenarios against the same Kind cluster. Each `ginkgo.Context` redeploys the DaemonSet with the appropriate backend before running specs.
 
 ### L2 Backend (default in production)
 Sends captured packets as raw Ethernet frames over the interface from `--iface_names`. Requires shared L2 adjacency (same VLAN). No TUN device is created. NFLOG rule captures on the primary interface:
