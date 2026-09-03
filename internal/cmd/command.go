@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	goflag "flag"
 	"fmt"
 	"net"
@@ -83,7 +84,7 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 	}
 	if cfg.RelayBackend == conf.BackendL2 {
 		if len(cfg.InterfaceNames) == 0 {
-			return fmt.Errorf("relay-backend=l2 requires --iface_names")
+			return errors.New("relay-backend=l2 requires --iface_names")
 		}
 		if err := util.GetReplicationInterface(&cfg, log); err != nil {
 			return err

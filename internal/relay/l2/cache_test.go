@@ -21,7 +21,7 @@ func (f *fakeResolver) Resolve(string) (net.HardwareAddr, error) {
 }
 
 func TestMACCacheHitWithinTTL(t *testing.T) {
-	mac, _ := net.ParseMAC("aa:bb:cc:dd:ee:ff")
+	mac := mustParseMAC("aa:bb:cc:dd:ee:ff")
 	f := &fakeResolver{mac: mac}
 	now := time.Unix(0, 0)
 	c := newMACCache(f, time.Minute)
@@ -40,7 +40,7 @@ func TestMACCacheHitWithinTTL(t *testing.T) {
 }
 
 func TestMACCacheExpiry(t *testing.T) {
-	mac, _ := net.ParseMAC("aa:bb:cc:dd:ee:ff")
+	mac := mustParseMAC("aa:bb:cc:dd:ee:ff")
 	f := &fakeResolver{mac: mac}
 	now := time.Unix(0, 0)
 	c := newMACCache(f, time.Minute)

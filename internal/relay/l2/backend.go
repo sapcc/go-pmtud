@@ -5,6 +5,7 @@ package l2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -37,7 +38,7 @@ type backend struct {
 // interface configured via --iface_names.
 func New(d relay.Deps) (relay.Relay, error) {
 	if d.Cfg.ReplicationInterface == "" {
-		return nil, fmt.Errorf("l2 backend requires a replication interface (set --iface_names)")
+		return nil, errors.New("l2 backend requires a replication interface (set --iface_names)")
 	}
 	ifi, err := net.InterfaceByName(d.Cfg.ReplicationInterface)
 	if err != nil {
