@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 
 	"github.com/go-logr/logr"
 	"github.com/google/nftables"
@@ -88,10 +89,9 @@ func (m *Manager) setupNFT() error {
 	table, chain, rule := buildNFTObjects(m.cfg.DefaultInterface, m.cfg.NfGroup)
 	// Delete any existing pmtud table first to make Setup idempotent across restarts.
 	conn.DelTable(table)
-	if err := conn.Flush(); err != nil {
-		// Ignore "no such table" — it just means we're starting fresh.
-		// use a logger with higher verbosity level to avoid spamming; emit only in debug/trace mode.
-		m.log.V(1).Info("pre-cleanup flush (ignore if table didn't exist)", "err", err)
+	// ENOENT means the table does not exist yet (first start / fresh node) — not an error.
+	if err := conn.Flush(); err != nil && !errors.Is(err, syscall.ENOENT) {
+		return fmt.Errorf("pre-cleanup flush: %w", err)
 	}
 	// Fresh connection after the delete flush.
 	conn, err = nftables.New()
