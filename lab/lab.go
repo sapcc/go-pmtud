@@ -56,6 +56,10 @@ func Provision(ctx context.Context) (*Lab, error) {
 
 	l := &Lab{Cluster: c, BlackholeIP: blackholeIP}
 
+	if err := setupTransitNetwork(l); err != nil {
+		return nil, err
+	}
+
 	if err := configureHop(ctx, l); err != nil {
 		return nil, err
 	}
@@ -69,5 +73,7 @@ func (l *Lab) Teardown(ctx context.Context) error {
 	if os.Getenv("LAB_KEEP") != "" {
 		return nil
 	}
-	return deleteCluster(ctx, ClusterName)
+	err := deleteCluster(ctx, ClusterName)
+	teardownTransitNetwork()
+	return err
 }
