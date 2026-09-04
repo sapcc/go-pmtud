@@ -19,10 +19,11 @@ func pmtuSpecs(backend string) {
 
 		gomega.Expect(testLab.FlushRouteCache(originator)).To(gomega.Succeed())
 
-		// Snapshot peer counters before traffic. UDP tracks injected packets on
-		// the peer; L2 has no receive-side counter so we use sent_packets on the
-		// peer (the peer relays back in Kind's single-interface topology, which
-		// proves the frame was delivered and processed end-to-end).
+		// Snapshot the per-backend peer-delivery baseline. UDP verifies peer
+		// ingest directly (injected via TUN). L2/legacy have no receive-side
+		// counter, so we verify the originator relayed to each peer
+		// (sent_packets_peer{peer=<peerIP>}); capture (eth1) != replication
+		// (eth0) means no self-recapture storm.
 		base := make(map[string]int, len(workers))
 		for _, w := range workers[1:] {
 			var (
@@ -32,7 +33,7 @@ func pmtuSpecs(backend string) {
 			if backend == "udp" {
 				n, err = testLab.InjectedPackets(w)
 			} else {
-				n, err = testLab.SentPackets(w)
+				n, err = testLab.SentPacketsPeer(originator, w)
 			}
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			base[w] = n
@@ -49,7 +50,7 @@ func pmtuSpecs(backend string) {
 			Should(gomega.Equal(1280),
 				"originator %s must converge natively to 1280 (%s)", originator, backend)
 
-		// peers: replication delivered
+		// peers: relay delivered
 		for _, w := range workers[1:] {
 			if backend == "udp" {
 				gomega.Eventually(func() (int, error) {
@@ -58,17 +59,15 @@ func pmtuSpecs(backend string) {
 					WithTimeout(30 * time.Second).
 					WithPolling(2 * time.Second).
 					Should(gomega.BeNumerically(">", base[w]),
-						"peer %s must receive a relayed frag-needed via %s", w, backend)
+						"peer %s must inject a relayed frag-needed (udp)", w)
 			} else {
-				// L2: peer received the frame natively (NFLOG fired), processed it,
-				// and forwarded — SentPackets increments proves end-to-end delivery.
 				gomega.Eventually(func() (int, error) {
-					return testLab.SentPackets(w)
+					return testLab.SentPacketsPeer(originator, w)
 				}).
 					WithTimeout(30 * time.Second).
 					WithPolling(2 * time.Second).
 					Should(gomega.BeNumerically(">", base[w]),
-						"peer %s must forward a relayed frag-needed via %s", w, backend)
+						"originator must relay a frag-needed to peer %s (%s)", w, backend)
 			}
 		}
 	})
