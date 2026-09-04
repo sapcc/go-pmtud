@@ -23,12 +23,13 @@ status: ## Show lab component status
 
 ## Cleanup
 
-down: ## Remove lab (single kind cluster)
+down: ## Remove lab (single kind cluster + transit network)
 	kind delete cluster --name pmtud 2>/dev/null || true
+	docker network rm pmtud-transit 2>/dev/null || true
 
 ## Go e2e suite
 
-e2e: ## Run Go e2e suite (provisions, tests udp, tears down)
+e2e: ## Run Go e2e suite (provisions, tests legacy, l2, udp, tears down)
 	cd .. && REPO_ROOT=$$(pwd) go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
 
 e2e-keep: ## Run e2e but keep lab after (for manual inspection)
