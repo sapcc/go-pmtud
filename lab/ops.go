@@ -131,3 +131,43 @@ func sumMetric(out, name string) int {
 	}
 	return total
 }
+
+// sumMetricPeer sums the values of metric `name` samples whose peer label
+// equals peerIP (e.g. go_pmtud_sent_packets_peer{...,peer="172.18.0.5"}).
+func sumMetricPeer(out, name, peerIP string) int {
+	needle := `peer="` + peerIP + `"`
+	total := 0
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) == 0 || line[0] == '#' || !strings.HasPrefix(line, name) {
+			continue
+		}
+		if !strings.Contains(line, needle) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if v, err := strconv.ParseFloat(fields[len(fields)-1], 64); err == nil {
+			total += int(v)
+		}
+	}
+	return total
+}
+
+// SentPacketsPeer returns go_pmtud_sent_packets_peer scraped from `node`, summed
+// over samples whose peer label is peerNode's kind-network InternalIP. This is
+// the L2/legacy peer-delivery observable, read on the originator: it proves the
+// relay resolved that peer's MAC (ARP on the replication interface) and wrote a
+// frame to it. Taking a node name keeps it consistent with the rest of the API.
+func (l *Lab) SentPacketsPeer(node, peerNode string) (int, error) {
+	peerIP, err := containerIP(peerNode)
+	if err != nil {
+		return 0, err
+	}
+	out, err := dockerExec(node, "curl", "-s", "http://127.0.0.1:"+metricsPort+"/metrics")
+	if err != nil {
+		return 0, fmt.Errorf("scrape metrics on %s: %w", node, err)
+	}
+	return sumMetricPeer(out, "go_pmtud_sent_packets_peer", peerIP), nil
+}

@@ -33,3 +33,17 @@ func TestParseRouteMTU(t *testing.T) {
 		t.Errorf("parseRouteMTU with no mtu should be 0")
 	}
 }
+
+func TestSumMetricPeer(t *testing.T) {
+	out := `# HELP go_pmtud_sent_packets_peer Number of sent ICMP packets per peer
+# TYPE go_pmtud_sent_packets_peer counter
+go_pmtud_sent_packets_peer{node="pmtud-worker",peer="172.18.0.5"} 2
+go_pmtud_sent_packets_peer{node="pmtud-worker",peer="172.18.0.6"} 1
+`
+	if got := sumMetricPeer(out, "go_pmtud_sent_packets_peer", "172.18.0.5"); got != 2 {
+		t.Errorf(`peer 172.18.0.5 = %d, want 2`, got)
+	}
+	if got := sumMetricPeer(out, "go_pmtud_sent_packets_peer", "10.0.0.9"); got != 0 {
+		t.Errorf(`absent peer = %d, want 0`, got)
+	}
+}
