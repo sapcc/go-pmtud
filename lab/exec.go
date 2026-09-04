@@ -6,6 +6,7 @@
 package lab
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,16 +29,42 @@ func dockerExec(container string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// containerIP returns the first docker-network IP of a container.
-func containerIP(name string) (string, error) {
+const kindNetwork = "kind"
+
+// ipFromNetworksJSON extracts a container's IP on a named docker network from
+// the JSON emitted by `docker inspect -f '{{json .NetworkSettings.Networks}}'`.
+func ipFromNetworksJSON(jsonStr, network string) (string, error) {
+	var nets map[string]struct {
+		IPAddress string `json:"IPAddress"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &nets); err != nil {
+		return "", fmt.Errorf("parse networks json: %w", err)
+	}
+	n, ok := nets[network]
+	if !ok {
+		return "", fmt.Errorf("container not on network %q", network)
+	}
+	if n.IPAddress == "" {
+		return "", fmt.Errorf("no IP for container on network %q", network)
+	}
+	return n.IPAddress, nil
+}
+
+// containerIPOnNetwork returns a container's IP on a specific docker network.
+func containerIPOnNetwork(name, network string) (string, error) {
 	out, err := exec.Command("docker", "inspect", "-f",
-		"{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", name).CombinedOutput()
+		"{{json .NetworkSettings.Networks}}", name).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("inspect %s: %w: %s", name, err, string(out))
 	}
-	fields := strings.Fields(string(out))
-	if len(fields) == 0 {
-		return "", fmt.Errorf("no IP for container %s", name)
+	ip, err := ipFromNetworksJSON(strings.TrimSpace(string(out)), network)
+	if err != nil {
+		return "", fmt.Errorf("container %s: %w", name, err)
 	}
-	return fields[0], nil
+	return ip, nil
+}
+
+// containerIP returns a node's kind-network IP (its Kubernetes InternalIP / eth0).
+func containerIP(name string) (string, error) {
+	return containerIPOnNetwork(name, kindNetwork)
 }
