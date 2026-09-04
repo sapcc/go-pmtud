@@ -27,26 +27,27 @@ func configureHop(ctx context.Context, l *Lab) error {
 		return fmt.Errorf("assign hop address: %w", err)
 	}
 
-	cpIP, err := containerIP(cp)
+	// Route the blackhole subnet from worker-A via the control-plane's TRANSIT
+	// IP (eth1), so the DF-set ping traverses eth1 — the capture interface.
+	cpTransitIP, err := containerIPOnNetwork(cp, TransitNetwork)
 	if err != nil {
 		return err
 	}
 	worker := l.Cluster.Workers[0]
-	if _, err := dockerExec(worker, "ip", "route", "replace", HopSubnet, "via", cpIP); err != nil {
+	if _, err := dockerExec(worker, "ip", "route", "replace", HopSubnet, "via", cpTransitIP); err != nil {
 		return fmt.Errorf("route worker-A -> hop subnet: %w", err)
 	}
 
-	// The hop must source its ICMP frag-needed from a NON-node address. Left to
-	// the default route, the error sources from the CP's node InternalIP, which
-	// the reconciler has added to worker-A's PeerList — so the daemon's
-	// loop-prevention drops it as peer-originated and never relays. Pin the
-	// return route to worker-A so the error sources from HopIP (the low-MTU
-	// router address, per RFC 1191). eth0 is the inter-node iface on kind nodes.
-	workerAIP, err := containerIP(worker)
+	// The hop must source its ICMP frag-needed from a NON-node address (per RFC
+	// 1191). Pin the CP's return route to worker-A out eth1 with src HopIP so the
+	// error sources from the low-MTU hop address, not the CP node IP (which is in
+	// worker-A's PeerList and would be dropped as peer-originated).
+	workerATransitIP, err := containerIPOnNetwork(worker, TransitNetwork)
 	if err != nil {
 		return err
 	}
-	if _, err := dockerExec(cp, "ip", "route", "replace", workerAIP+"/32", "dev", "eth0", "src", HopIP); err != nil {
+	if _, err := dockerExec(cp, "ip", "route", "replace", workerATransitIP+"/32",
+		"dev", "eth1", "src", HopIP); err != nil {
 		return fmt.Errorf("pin hop return route to worker-A: %w", err)
 	}
 	return nil
