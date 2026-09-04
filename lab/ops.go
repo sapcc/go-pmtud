@@ -104,16 +104,6 @@ func (l *Lab) InjectedPackets(node string) (int, error) {
 	return sumMetric(out, "go_pmtud_injected_packets_total"), nil
 }
 
-// SentPackets returns the total go_pmtud_sent_packets_total on node.
-// Used to verify the L2 backend relayed at least one packet.
-func (l *Lab) SentPackets(node string) (int, error) {
-	out, err := dockerExec(node, "curl", "-s", "http://127.0.0.1:"+metricsPort+"/metrics")
-	if err != nil {
-		return 0, fmt.Errorf("scrape metrics on %s: %w", node, err)
-	}
-	return sumMetric(out, "go_pmtud_sent_packets_total"), nil
-}
-
 // sumMetric sums the values of all non-comment samples of a Prometheus metric.
 func sumMetric(out, name string) int {
 	total := 0
