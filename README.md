@@ -25,87 +25,159 @@ More details in this blog post by Cloudflare: [Path MTU discovery in practice](h
 
 go-pmtud replicates ICMP Destination Unreachable packets to all nodes in same Kubernetes cluster, so that the sender gets awareness that it has to use smaller packets for a particular destination.
 
-## Concept
-
-1. ICMP Destination Unreachable message (type 3 code 4 message) packets are filtered and sent to specific NFlog group by iptables.
-
-2. go-pmtud replicates ICMP packets to all nodes in same Kubernetes cluster, so that the sender pod gets awareness that it has to use smaller packets for particular destination.
+## Architecture
 
 ```
-Exec into the pod:
-
-# ip route get 192.168.100.10
-192.168.100.10 via 192.100.0.1 dev eth0 src 192.100.0.50
-    cache  expires 484sec mtu 9000  <<<< connection is failing
-
-# ip route get 192.168.100.10
-192.168.100.10 via 192.100.0.1 dev eth0 src 192.100.0.50
-    cache  expires 484sec mtu 8996  <<<< correct MTU information, connection is working
+iptables (NFLOG group 33)
+        │
+        ▼
+  nflog controller          ← captures ICMP type 3 code 4 packets
+        │
+        ▼
+  relay backend             ← distributes packets to peer nodes
+        │
+        ├─ l2 (default)     ← raw Ethernet frame → peer kernel receives natively
+        │
+        └─ udp              ← UDP unicast → TUN device (pmtud0) → kernel receives
 ```
+
+Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives, iptables redirects it to an NFLOG group. go-pmtud reads it and replicates it via the configured relay backend. The `l2` backend sends raw Ethernet frames over the replication interface; the `udp` backend sends UDP unicast and injects received packets via the `pmtud0` TUN device.
+
+## Relay Backends
+
+go-pmtud relays captured ICMP packets between nodes through a pluggable `Relay` interface (`internal/relay`). The backend is selected with `--relay-backend`; `l2` is the default.
+
+### `l2` (default)
+
+Relay packets are sent as raw Ethernet frames directly over the interface specified by `--iface_names`. Nodes must share L2 adjacency (same VLAN). This backend requires `CAP_NET_RAW` and creates no TUN device.
+
+NFLOG rule — capture on the primary replication interface:
+
+```sh
+iptables -t raw -A PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
+```
+
+L2-specific flags: `--iface_names` (required), `--iface_mtu` (default `1500`), `--node-timeout-minutes` (default `5`), `--arp-timeout-seconds` (default `1`).
+
+### `udp`
+
+Relay packets are sent via UDP unicast to peer node IPs on `--replication-port` (default `4390`). Peer addresses are discovered from the Kubernetes Node API. This backend works across L3 boundaries, requires `CAP_NET_RAW` + `CAP_NET_ADMIN`, and injects received packets via the `pmtud0` TUN device. The UDP port must be reachable between nodes.
+
+NFLOG rule — must exclude the TUN interface to prevent relay loops:
+
+```sh
+iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
+```
+
+### Migration
+
+Existing `l2` deployments upgrade to this image with **no manifest change** — `l2` remains the default and all L2 flags are preserved. To adopt the `udp` backend, set `--relay-backend=udp` and switch the NFLOG rule to the `! -i pmtud0` form above.
+
+## CLI Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--nodename` | | Node hostname, used as a metric label |
+| `--relay-backend` | `l2` | Relay backend: `l2` (default, raw Ethernet) or `udp` (UDP unicast) |
+| `--iface_names` | | Replication interface names (L2 backend, required) |
+| `--iface_mtu` | `1500` | MTU for the replication interface (L2 backend) |
+| `--node-timeout-minutes` | `5` | ARP cache entry timeout in minutes (L2 backend) |
+| `--arp-timeout-seconds` | `1` | ARP request timeout in seconds (L2 backend) |
+| `--replication-port` | `4390` | UDP port for packet replication (UDP backend) |
+| `--nflog_group` | `33` | NFLOG group number |
+| `--ttl` | `1` | TTL of re-injected ICMP packets |
+| `--ignore-networks` | | Comma-separated CIDRs — packets from these sources are not relayed |
+| `--metrics_port` | `:30040` | Prometheus metrics endpoint |
+| `--health_port` | `:30041` | Healthz endpoint |
+| `--kube_context` | | Kubeconfig context to use |
+
+All flags can also be set via environment variables prefixed with `PMTUD_` (e.g. `PMTUD_NODENAME`).
+
+## Metrics
+
+Prometheus metrics are exposed on `--metrics_port` (default `:30040`). Every metric carries a `node` label. The two stages of the relay pipeline (capture and inject) each map to exactly one counter:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `go_pmtud_recv_packets_total` | `node`, `source_ip` | ICMP frag-needed packets **captured from the kernel** (nflog) on this node. Capture only. |
+| `go_pmtud_injected_packets_total` | `node`, `source` | Packets received from a peer and injected into the local stack via the `pmtud0` TUN device (`udp` backend only; stays zero in `l2` mode). `source` is the relaying peer IP. |
+
+Supporting metrics:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `go_pmtud_sent_packets_total` | `node` | Packets sent to peers, per successful send. |
+| `go_pmtud_sent_packets_peer` | `node`, `peer` | Packets sent, per peer. |
+| `go_pmtud_sent_error_peer_total` | `node`, `peer` | Send errors, per peer. |
+| `go_pmtud_error_total` | `node` | General error counter. |
+| `go_pmtud_callback_duration_seconds` | `node` | Histogram of nflog callback duration. |
+
+Useful queries:
+
+```promql
+# ICMP frag-needed captured cluster-wide, per minute
+sum(rate(go_pmtud_recv_packets_total[1m])) * 60
+
+# Packets injected from peers cluster-wide, per minute
+sum(rate(go_pmtud_injected_packets_total[1m])) * 60
+```
+
+## Testing
+
+### Unit tests
+
+```sh
+go test ./...
+```
+
+### E2E tests (Kind)
+
+The e2e suite provisions a single Kind cluster, deploys go-pmtud, and runs three backend contexts in order — `legacy` (no `--relay-backend` flag, validating the upgrade path), `l2` (raw Ethernet), and `udp` (UDP unicast across L3 boundaries).
+
+Requirements: Docker, [kind](https://kind.sigs.k8s.io/) v0.20+, kubectl.
+
+```sh
+cd lab/
+make e2e           # provision + test all three backends + teardown
+make e2e-keep      # same but keep the cluster for manual inspection
+```
+
+See [`lab/README.md`](lab/README.md) for Ginkgo flags, teardown, and manual inspection.
 
 ## Build
 
-Build from source:
-
-```
+```sh
 go mod download
-go build -v -o /go-pmtud cmd/go-pmtud/main.go
+go build -o go-pmtud ./cmd/go-pmtud
 ```
 
-Build a Docker image:
+Docker image:
 
-```
+```sh
 docker build -t go-pmtud .
 ```
 
-## go-pmtud options
+## iptables and NFlog
 
-Following options are available:
+Each node needs an iptables rule that redirects ICMP Destination Unreachable packets to the NFLOG group. The correct rule depends on the relay backend in use.
 
-1. peers - resend ICMP frag-needed packets to this peer list.
-2. iface - interface that listens for ICMP packets and resends them to other peers.
-3. nodename - node hostname, used for metric label.
-4. nflog-group - NFLOG group, set to 33 in our case.
-5. metrics-port - Port for Prometheus metrics (30040 by default).
-6. ttl - TTL of replicated ICMP packets.
-7. ignore-networks - Do not resend ICMP frag-needed packets originated from specified networks
+**`l2` backend** (default) — capture on the primary replication interface:
 
-If `iface` is empty, it finds out the outgoing interface based on the default route. 
-
-## Example - go-pmtud Daemonset
-
-go-pmtud can run as a [Daemonset](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/), [example](https://github.com/sapcc/helm-charts/blob/master/system/go-pmtud).
-
-Example values.yaml:
-
-```
-images:
-  iptables:
-    repository: sapcc/iptables
-    tag: v20191226161919
-  pmtud:
-    repository: sapcc/go-pmtud
-    tag: latest
-
-iptables:
-  nflogGroup: 33
-  ignoreSourceNetworks: 192.168.100.0/24
-
-pmtud:
-  ttl: 10
-  metricsPort: 30040
-  interface: eth0
-  peers: 192.168.100.2, 192.168.100.3, 192.168.100.4, 192.168.100.5, 192.100.0.50
+```sh
+iptables -t raw -A PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
 ```
 
-## Example - iptables and NFlog
+**`udp` backend** — the rule **must** exclude the `pmtud0` TUN interface to prevent replication loops:
 
-There is an iptables rule on each node that redirects ICMP Destination Unreachable` packets to NFlog group nr. 33:
+```sh
+iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
+```
 
-`iptables -t raw -D PREROUTING -i <interface> -p icmp -m icmp --icmp-type 3/4 --j NFLOG --nflog-group 33`
+Optionally use `--ignore-networks` to suppress packets from known infrastructure networks (e.g. node subnets) as an additional safety layer.
 
-Important: we need ignore packets from summarized source networks of all nodes in the local cluster to avoid re-sending loops. Use `ignore-networks` option for this. 
-This means a node will not re-send already retransmitted ICMP messages. It will only resend messages that are usually originated by routers on the path. 
+## Example — DaemonSet
+
+go-pmtud is designed to run as a [DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/). A Helm chart is available at [sapcc/helm-charts](https://github.com/sapcc/helm-charts/blob/master/system/go-pmtud).
 
 ## Container Lifecycle
 
@@ -120,4 +192,5 @@ The binary manages firewall state during its runtime:
 See [`internal/firewall/`](internal/firewall/) for the implementation (Linux only; non-Linux platforms get a no-op stub).
 
 ## License
-This project is licensed under the Apache2 License - see the [LICENSE](LICENSE) file for details
+
+This project is licensed under the Apache 2.0 License — see the [LICENSE](LICENSE) file for details.
