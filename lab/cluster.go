@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -128,24 +129,22 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 		return fmt.Errorf("read daemonset: %w", err)
 	}
 
-	// "legacy" simulates a pre-feature manifest: substitute l2 for the
-	// $(RELAY_BACKEND) placeholder, then strip --relay-backend entirely so the
-	// daemon defaults to l2 on its own (testing the upgrade path).
 	backendValue := backend
+	stripRelay := false
 	if backend == "legacy" {
 		backendValue = "l2"
+		stripRelay = true
 	}
-	patched := strings.ReplaceAll(string(data), "$(RELAY_BACKEND)", backendValue)
-	if backend == "legacy" {
-		lines := strings.Split(patched, "\n")
-		kept := lines[:0]
-		for _, l := range lines {
-			if !strings.Contains(l, "--relay-backend=") {
-				kept = append(kept, l)
-			}
-		}
-		patched = strings.Join(kept, "\n")
+
+	if len(c.Workers) == 0 {
+		return fmt.Errorf("no workers to detect eth0 MTU")
 	}
+	mtu, err := detectEth0MTU(c.Workers[0])
+	if err != nil {
+		return err
+	}
+
+	patched := patchDaemonSet(string(data), backendValue, mtu, stripRelay)
 
 	f, err := os.CreateTemp("", "daemonset-*.yaml")
 	if err != nil {
@@ -158,6 +157,44 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 	}
 	f.Close()
 	return run("kubectl", "--kubeconfig", c.KubeconfigPath, "apply", "-n", "kube-system", "-f", f.Name())
+}
+
+// parseIfaceMTU parses the contents of /sys/class/net/<if>/mtu (e.g. "1500\n").
+func parseIfaceMTU(out string) (int, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("parse iface mtu %q: %w", out, err)
+	}
+	return n, nil
+}
+
+// detectEth0MTU reads eth0's MTU on a node. All Kind nodes share the same eth0
+// MTU, which is environment-dependent (65535 on Docker Desktop, 1500 on Linux).
+func detectEth0MTU(node string) (int, error) {
+	out, err := dockerExec(node, "cat", "/sys/class/net/eth0/mtu")
+	if err != nil {
+		return 0, fmt.Errorf("read eth0 mtu on %s: %w", node, err)
+	}
+	return parseIfaceMTU(out)
+}
+
+// patchDaemonSet substitutes the manifest placeholders. When stripRelayBackend
+// is set (legacy), lines carrying --relay-backend are removed so the daemon
+// defaults to l2 on its own.
+func patchDaemonSet(data, backendValue string, ifaceMTU int, stripRelayBackend bool) string {
+	patched := strings.ReplaceAll(data, "$(RELAY_BACKEND)", backendValue)
+	patched = strings.ReplaceAll(patched, "$(IFACE_MTU)", strconv.Itoa(ifaceMTU))
+	if stripRelayBackend {
+		lines := strings.Split(patched, "\n")
+		kept := lines[:0]
+		for _, l := range lines {
+			if !strings.Contains(l, "--relay-backend=") {
+				kept = append(kept, l)
+			}
+		}
+		patched = strings.Join(kept, "\n")
+	}
+	return patched
 }
 
 func (c *Cluster) waitRollout(ctx context.Context, ns, name string) error {

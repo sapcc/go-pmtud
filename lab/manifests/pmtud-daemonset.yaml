@@ -31,6 +31,7 @@ spec:
             - --nodename=$(NODE_NAME)
             - --relay-backend=$(RELAY_BACKEND)
             - --iface_names=eth0
+            - --iface_mtu=$(IFACE_MTU)
           env:
             - name: NODE_NAME
               valueFrom:
