@@ -43,31 +43,35 @@ iptables (NFLOG group 33)
 
 Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives, iptables redirects it to an NFLOG group. go-pmtud reads it and replicates it via the configured relay backend. The `l2` backend sends raw Ethernet frames over the replication interface; the `udp` backend sends UDP unicast and injects received packets via the `pmtud0` TUN device.
 
+## NFLOG Capture Rule
+
+go-pmtud captures ICMP frag-needed packets via an NFLOG group. The rule is installed automatically at startup via nftables — see [`internal/firewall/rule.go`](internal/firewall/rule.go). The equivalent iptables forms are shown below for reference.
+
+**`l2` backend** — capture on the primary replication interface:
+
+```sh
+iptables -t raw -I PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
+```
+
+**`udp` backend** — must exclude the TUN interface to prevent relay loops:
+
+```sh
+iptables -t raw -I PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
+```
+
 ## Relay Backends
 
 go-pmtud relays captured ICMP packets between nodes through a pluggable `Relay` interface (`internal/relay`). The backend is selected with `--relay-backend`; `l2` is the default.
 
 ### `l2` (default)
 
-Relay packets are sent as raw Ethernet frames directly over the interface specified by `--iface_names`. Nodes must share L2 adjacency (same VLAN). This backend requires `CAP_NET_RAW` and creates no TUN device.
-
-NFLOG rule — capture on the primary replication interface:
-
-```sh
-iptables -t raw -A PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
-```
+Relay packets are sent as raw Ethernet frames directly over the interface specified by `--iface_names`. Nodes must share L2 adjacency (same L2 layer or same VLAN). This backend requires `CAP_NET_RAW` and creates no TUN device.
 
 L2-specific flags: `--iface_names` (required), `--iface_mtu` (default `1500`), `--node-timeout-minutes` (default `5`), `--arp-timeout-seconds` (default `1`).
 
 ### `udp`
 
 Relay packets are sent via UDP unicast to peer node IPs on `--replication-port` (default `4390`). Peer addresses are discovered from the Kubernetes Node API. This backend works across L3 boundaries, requires `CAP_NET_RAW` + `CAP_NET_ADMIN`, and injects received packets via the `pmtud0` TUN device. The UDP port must be reachable between nodes.
-
-NFLOG rule — must exclude the TUN interface to prevent relay loops:
-
-```sh
-iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
-```
 
 ### Migration
 
@@ -156,24 +160,6 @@ Docker image:
 ```sh
 docker build -t go-pmtud .
 ```
-
-## iptables and NFlog
-
-Each node needs an iptables rule that redirects ICMP Destination Unreachable packets to the NFLOG group. The correct rule depends on the relay backend in use.
-
-**`l2` backend** (default) — capture on the primary replication interface:
-
-```sh
-iptables -t raw -A PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
-```
-
-**`udp` backend** — the rule **must** exclude the `pmtud0` TUN interface to prevent replication loops:
-
-```sh
-iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
-```
-
-Optionally use `--ignore-networks` to suppress packets from known infrastructure networks (e.g. node subnets) as an additional safety layer.
 
 ## Example — DaemonSet
 
