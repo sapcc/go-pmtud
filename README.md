@@ -45,19 +45,13 @@ Each node runs go-pmtud as a DaemonSet. When an ICMP frag-needed packet arrives,
 
 ## NFLOG Capture Rule
 
-go-pmtud captures ICMP frag-needed packets via an NFLOG group. The rule is installed automatically at startup via nftables — see [`internal/firewall/rule.go`](internal/firewall/rule.go). The equivalent iptables forms are shown below for reference.
-
-**`l2` backend** — capture on the primary replication interface:
+go-pmtud captures ICMP frag-needed packets via an NFLOG group. The rule is installed automatically at startup via nftables — see [`internal/firewall/rule.go`](internal/firewall/rule.go). The equivalent iptables form for reference:
 
 ```sh
-iptables -t raw -I PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
+iptables -t raw -I PREROUTING -i <default-route-iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
 ```
 
-**`udp` backend** — must exclude the TUN interface to prevent relay loops:
-
-```sh
-iptables -t raw -I PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
-```
+The rule captures only on the default-route interface (resolved automatically at startup — not a CLI flag). This positive interface match is the loop-prevention mechanism for both backends: replicated L2 frames arrive on the replication interface (`--iface_names`) and injected UDP packets arrive on `pmtud0`, both of which are distinct from the default-route interface.
 
 ## Relay Backends
 
@@ -75,7 +69,7 @@ Relay packets are sent via UDP unicast to peer node IPs on `--replication-port` 
 
 ### Migration
 
-Existing `l2` deployments upgrade to this image with **no manifest change** — `l2` remains the default and all L2 flags are preserved. To adopt the `udp` backend, set `--relay-backend=udp` and switch the NFLOG rule to the `! -i pmtud0` form above.
+Existing `l2` deployments upgrade to this image with **no manifest change** — `l2` remains the default and all L2 flags are preserved. To adopt the `udp` backend, set `--relay-backend=udp`. No NFLOG rule change is needed; the binary manages the rule for both backends.
 
 ## CLI Options
 

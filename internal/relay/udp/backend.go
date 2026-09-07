@@ -86,6 +86,8 @@ func (ub *backend) Send(_ context.Context, pkt relay.RelayPacket) error {
 
 func (ub *backend) Start(ctx context.Context) error {
 	// Create and own the TUN injector for this backend.
+	// Loop prevention: the firewall manager (internal/firewall) installs the NFLOG rule as
+	// iifname == DefaultInterface, so packets injected via TUNDeviceName never match it.
 	inj, err := ub.injectorFactory(TUNDeviceName)
 	if err != nil {
 		return fmt.Errorf("creating TUN injector: %w", err)
@@ -93,9 +95,6 @@ func (ub *backend) Start(ctx context.Context) error {
 	defer inj.Close()
 
 	ub.log.Info("TUN device created", "name", TUNDeviceName)
-	ub.log.Info("IMPORTANT: NFLOG rule MUST exclude the TUN interface to prevent loops",
-		"required_rule", "iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i "+TUNDeviceName+" -j NFLOG --nflog-group <group>")
-
 	addr := fmt.Sprintf(":%d", ub.cfg.ReplicationPort)
 	ub.log.Info("Starting UDP relay listener", "addr", addr)
 
