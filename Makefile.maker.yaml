@@ -40,3 +40,7 @@ renovate:
     - SchwarzM
     - xsen84
     - goerangudat
+  packageRules:
+    - matchManagers:
+        - gomod
+      enabled: true
