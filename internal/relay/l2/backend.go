@@ -26,11 +26,11 @@ type frameConn interface {
 }
 
 type backend struct {
-	cfg   *config.Config  // shared runtime configuration including peer list and node identity
-	log   logr.Logger     // structured logger
-	ifi   *net.Interface  // replication interface used as the frame source
-	conn  frameConn       // raw packet socket bound to ifi
-	cache *macCache       // ARP cache mapping peer IPs to their MAC addresses
+	cfg   *config.Config // shared runtime configuration including peer list and node identity
+	log   logr.Logger    // structured logger
+	ifi   *net.Interface // replication interface used as the frame source
+	conn  frameConn      // raw packet socket bound to ifi
+	cache *macCache      // ARP cache mapping peer IPs to their MAC addresses
 }
 
 // New creates an L2 (raw Ethernet) relay backend bound to the replication
