@@ -70,6 +70,12 @@
         ".github/workflows/container-registry-ghcr.yaml"
       ],
       "enabled": false
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "enabled": true
     }
   ],
   "prHourlyLimit": 0,
