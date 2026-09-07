@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
-// Package arp resolves peer node IPs to MAC addresses over the L2 replication
-// interface. It is only used by the L2 relay backend.
-package arp
+package l2
 
 import (
 	"net"

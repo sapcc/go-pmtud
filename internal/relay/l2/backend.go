@@ -14,7 +14,6 @@ import (
 	"github.com/mdlayher/ethernet"
 	"github.com/mdlayher/packet"
 
-	"github.com/sapcc/go-pmtud/internal/arp"
 	"github.com/sapcc/go-pmtud/internal/config"
 	"github.com/sapcc/go-pmtud/internal/metrics"
 	"github.com/sapcc/go-pmtud/internal/relay"
@@ -27,11 +26,11 @@ type frameConn interface {
 }
 
 type backend struct {
-	cfg   *config.Config
-	log   logr.Logger
-	ifi   *net.Interface
-	conn  frameConn
-	cache *macCache
+	cfg   *config.Config  // shared runtime configuration including peer list and node identity
+	log   logr.Logger     // structured logger
+	ifi   *net.Interface  // replication interface used as the frame source
+	conn  frameConn       // raw packet socket bound to ifi
+	cache *macCache       // ARP cache mapping peer IPs to their MAC addresses
 }
 
 // New creates an L2 (raw Ethernet) relay backend bound to the replication
@@ -48,7 +47,7 @@ func New(d relay.Deps) (relay.Relay, error) {
 	if err != nil {
 		return nil, fmt.Errorf("l2 backend: listen on %q: %w", d.Cfg.ReplicationInterface, err)
 	}
-	res := &arp.Resolver{Log: d.Log.WithName("arp"), Cfg: d.Cfg}
+	res := &Resolver{Log: d.Log.WithName("arp"), Cfg: d.Cfg}
 	ttl := time.Duration(d.Cfg.ArpCacheTimeoutMinutes) * time.Minute
 	return &backend{
 		cfg:   d.Cfg,
@@ -101,8 +100,6 @@ func (lb *backend) Send(_ context.Context, pkt relay.RelayPacket) error {
 // and processed natively by the receiving kernel. No TUN device is created.
 func (lb *backend) Start(ctx context.Context) error {
 	lb.log.Info("Starting L2 relay backend", "interface", lb.cfg.ReplicationInterface)
-	lb.log.Info("IMPORTANT: NFLOG rule MUST capture on the primary interface only",
-		"required_rule", "iptables -t raw -A PREROUTING -i <primary-iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group <group>")
 	<-ctx.Done()
 	return lb.conn.Close()
 }

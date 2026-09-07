@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// resolver resolves a peer IP to a MAC address (satisfied by *arp.Resolver).
+// resolver resolves a peer IP to a MAC address (satisfied by *Resolver).
 type resolver interface {
 	Resolve(ip string) (net.HardwareAddr, error)
 }
@@ -25,7 +25,7 @@ type macCache struct {
 	entries map[string]macEntry
 	ttl     time.Duration
 	res     resolver
-	now     func() time.Time
+	now     func() time.Time // replaceable in tests to simulate TTL expiry without sleeping
 }
 
 func newMACCache(res resolver, ttl time.Duration) *macCache {
