@@ -15,8 +15,9 @@ import (
 // transport header = 56 bytes total.
 func buildICMPFragNeededPacket(mtu uint16, innerSrc, innerDst net.IP, srcPort, dstPort uint16) []byte {
 	pkt := make([]byte, 56)
-	// Outer IP header (IHL=5)
+	// Outer IP header (IHL=5, total length=56)
 	pkt[0] = 0x45
+	binary.BigEndian.PutUint16(pkt[2:4], 56)
 	// ICMP header at offset 20
 	pkt[20] = 3 // type: destination unreachable
 	pkt[21] = 4 // code: fragmentation needed
@@ -96,6 +97,7 @@ func TestParseICMPFragNeeded(t *testing.T) {
 			packet: func() []byte {
 				p := make([]byte, 56)
 				p[0] = 0x48 // outer IHL=8 (32 bytes)
+				binary.BigEndian.PutUint16(p[2:4], 56)
 				icmpOff := 32
 				p[icmpOff] = 3
 				p[icmpOff+1] = 4

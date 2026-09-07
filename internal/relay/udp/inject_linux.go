@@ -65,8 +65,13 @@ func (inj *Injector) Close() error {
 }
 
 // createTUN opens /dev/net/tun and creates a TUN device with the given name.
+// /dev/net/tun is a permanent multiplexer node (the tun kernel module); it is
+// not the TUN device itself. Opening it just yields an unattached fd. The
+// subsequent TUNSETIFF ioctl creates (or attaches to) the named netdev and
+// binds it to the fd — that fd then becomes the I/O handle for the device.
 // Returns the file descriptor for the TUN device.
 func createTUN(name string) (int, error) {
+	// ENOENT here means the tun module is not loaded (modprobe tun).
 	fd, err := unix.Open("/dev/net/tun", unix.O_RDWR|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return -1, fmt.Errorf("open /dev/net/tun: %w", err)
@@ -75,6 +80,7 @@ func createTUN(name string) (int, error) {
 	var ifr [ifnamsiz + 64]byte
 	copy(ifr[:ifnamsiz], name)
 	// IFF_TUN: layer 3 tunnel, IFF_NO_PI: no packet info header
+	// EBUSY from TUNSETIFF means another process already holds this interface open.
 	flags := uint16(unix.IFF_TUN | unix.IFF_NO_PI)
 	ifr[ifnamsiz] = byte(flags & 0xff)          //#nosec G115
 	ifr[ifnamsiz+1] = byte((flags >> 8) & 0xff) //#nosec G115

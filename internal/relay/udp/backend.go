@@ -135,26 +135,30 @@ func (ub *backend) Start(ctx context.Context) error {
 
 		payload := make([]byte, n)
 		copy(payload, buf[:n])
-
-		if !ub.isKnownPeer(remoteAddr.IP) {
-			metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
-			ub.log.Info("rejected packet from unknown source", "remote", remoteAddr.IP.String())
-			continue
-		}
-
-		if _, err = ParseICMPFragNeeded(payload); err != nil {
-			metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
-			ub.log.Info("received invalid packet, discarding", "remote", remoteAddr, "error", err.Error())
-			continue
-		}
-
-		if err := inj.Inject(payload); err != nil {
-			metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
-			ub.log.Error(err, "error injecting packet", "remote", remoteAddr.IP.String())
-			continue
-		}
-
-		metrics.InjectedPackets.WithLabelValues(ub.cfg.NodeName, remoteAddr.IP.String()).Inc()
-		ub.log.Info("injected relayed ICMP packet", "from", remoteAddr.IP.String())
+		ub.handlePacket(inj, remoteAddr, payload)
 	}
+}
+
+func (ub *backend) handlePacket(inj injector, remoteAddr *net.UDPAddr, payload []byte) {
+	if !ub.isKnownPeer(remoteAddr.IP) {
+		metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
+		ub.log.Info("rejected packet from unknown source", "remote", remoteAddr.IP.String())
+		return
+	}
+
+	info, err := ParseICMPFragNeeded(payload)
+	if err != nil {
+		metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
+		ub.log.Info("received invalid packet, discarding", "remote", remoteAddr, "error", err.Error())
+		return
+	}
+
+	if err := inj.Inject(info.Raw); err != nil {
+		metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
+		ub.log.Error(err, "error injecting packet", "remote", remoteAddr.IP.String())
+		return
+	}
+
+	metrics.InjectedPackets.WithLabelValues(ub.cfg.NodeName, remoteAddr.IP.String()).Inc()
+	ub.log.Info("injected relayed ICMP packet", "from", remoteAddr.IP.String())
 }

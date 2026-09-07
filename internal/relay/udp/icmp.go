@@ -17,6 +17,9 @@ type ICMPFragNeededInfo struct {
 	DstIP   net.IP
 	SrcPort uint16
 	DstPort uint16
+	// Raw holds the packet trimmed to the length declared in the outer IP header,
+	// safe for direct injection into the local network stack.
+	Raw []byte
 }
 
 // ParseICMPFragNeeded parses an ICMP "fragmentation needed" packet and extracts relevant information.
@@ -30,6 +33,12 @@ func ParseICMPFragNeeded(packet []byte) (*ICMPFragNeededInfo, error) {
 	if len(packet) < 56 {
 		return nil, fmt.Errorf("packet too short: %d bytes", len(packet))
 	}
+
+	declaredLen := int(binary.BigEndian.Uint16(packet[2:4]))
+	if declaredLen > len(packet) {
+		return nil, fmt.Errorf("invalid IP total length: %d", declaredLen)
+	}
+	packet = packet[:declaredLen]
 
 	outerIPVersion := packet[0] >> 4
 	if outerIPVersion != 4 {
@@ -83,5 +92,6 @@ func ParseICMPFragNeeded(packet []byte) (*ICMPFragNeededInfo, error) {
 		DstIP:   dstIP,
 		SrcPort: srcPort,
 		DstPort: dstPort,
+		Raw:     packet,
 	}, nil
 }
