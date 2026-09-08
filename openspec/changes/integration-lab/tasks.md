@@ -55,7 +55,7 @@ and `test/integration/` files carry `//go:build integration`.
       convergence + metrics/logs → cleanup).
 - [ ] `lab/README.md`: single-cluster topology, commands, `LAB_REUSE`/`LAB_KEEP`,
       prerequisites; link the runbook.
-- [ ] `lab/Makefile` (hand-maintained): `integration` / `integration-reuse` / `integration-keep` targets
+- [ ] `lab/Makefile` (hand-maintained): `integration` / `integration-keep` targets
       (`go test -tags integration -timeout 20m ./test/integration/...`).
 
 ## 10. Build verification

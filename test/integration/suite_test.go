@@ -27,7 +27,7 @@ var _ = ginkgo.Describe("go-pmtud", func() {
 
 var testLab *lab.Lab
 
-func TestE2E(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "go-pmtud integration")
 }
