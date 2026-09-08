@@ -139,7 +139,7 @@ func (nfc *Controller) handlePacket(ctx context.Context, attrs nflog.Attribute) 
 	metrics.RecvPackets.WithLabelValues(cfg.NodeName, s.String()).Inc()
 
 	log.Info("ICMP frag-needed received, resending packet.", "ICMP source", sourceIP,
-		"source IP", s, "could not send to destination IP", d)
+		"source IP", s, "destination IP", d)
 
 	if err := nfc.Relay.Send(ctx, relay.RelayPacket{Payload: b, SrcNode: cfg.NodeName}); err != nil {
 		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
