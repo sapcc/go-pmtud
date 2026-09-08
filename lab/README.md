@@ -57,9 +57,9 @@ The lab simulates a **cross-zone L3 boundary** within a single cluster:
 ```bash
 cd lab/
 
-# Go e2e test suite (recommended)
-make e2e           # provision + test (legacy, l2, udp) + teardown
-make e2e-keep      # same but keep lab after for manual inspection
+# Go integration test suite (recommended)
+make integration           # provision + test (legacy, l2, udp) + teardown
+make integration-keep      # same but keep lab after for manual inspection
 
 # Observability (manual inspection only)
 make observe-node        # tcpdump ICMP packets on a worker node
@@ -67,34 +67,34 @@ make observe-replication # tcpdump UDP 4390 replication traffic
 make status              # check lab status
 ```
 
-## Go e2e Test Suite
+## Go integration Test Suite
 
-The `e2e` and `e2e-keep` targets run the Go test suite with Ginkgo. The suite provisions the cluster, then runs three ordered backend contexts — `legacy`, `l2`, `udp` — and tears down.
+The `integration` and `integration-keep` targets run the Go test suite with Ginkgo. The suite provisions the cluster, then runs three ordered backend contexts — `legacy`, `l2`, `udp` — and tears down.
 
 **Default (full run):**
 ```bash
-make e2e
+make integration
 ```
-Provisions lab, runs all e2e tests (20m timeout), tears down.
+Provisions lab, runs all integration tests (20m timeout), tears down.
 
 **Manual inspection (keep lab):**
 ```bash
-make e2e-keep
+make integration-keep
 ```
 Runs tests but keeps the lab running after completion — inspect clusters, logs, or state manually. Clean up with `make down`.
 
 **Custom Ginkgo flags:**
 ```bash
-make e2e GINKGO_FLAGS="-v --fail-fast"
-make e2e GINKGO_FLAGS="-v --focus=legacy"
+make integration GINKGO_FLAGS="-v --fail-fast"
+make integration GINKGO_FLAGS="-v --focus=legacy"
 ```
 
 ## Makefile Targets
 
 | Target | Description |
 |--------|-------------|
-| `e2e` | Run full e2e suite: provision, test (legacy + l2 + udp), teardown |
-| `e2e-keep` | Run tests but keep lab for manual inspection |
+| `integration` | Run full integration suite: provision, test (legacy + l2 + udp), teardown |
+| `integration-keep` | Run tests but keep lab for manual inspection |
 | `observe-node` | tcpdump ICMP frag-needed on a cluster node |
 | `observe-replication` | tcpdump UDP 4390 replication traffic |
 | `status` | Show lab component status |

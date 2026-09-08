@@ -4,10 +4,10 @@ SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Tasks — E2E Lab
+# Tasks — Integration Lab
 
 Ordered by dependency. Each task is completable in one coding session. All `lab/`
-and `test/e2e/` files carry `//go:build e2e`.
+and `test/integration/` files carry `//go:build integration`.
 
 ## 1. Scaffolding
 - [ ] `lab` package: `Lab`/`Cluster` types; `exec.go` with `run()`, `dockerExec()`,
@@ -39,13 +39,13 @@ and `test/e2e/` files carry `//go:build e2e`.
       absent. Install `iputils-ping` on worker-A if missing (or raw-socket sender).
 - [ ] `PMTUTo` (`ip route get` MTU parse) and `FlushRouteCache`.
 
-## 7. Suite (`test/e2e/`)
+## 7. Suite (`test/integration/`)
 - [ ] `suite_test.go`: `RunSpecs` + `BeforeSuite`/`AfterSuite`; `LAB_REUSE`/`LAB_KEEP`.
 - [ ] `config_test.go`: daemonset arg assertion for `--relay-backend=udp`.
 - [ ] `pmtu_test.go`: `udp` matrix; assert `PMTUTo(w, BlackholeIP) == 1280`
       for every worker; `ReportAfterEach` failure diagnostics (route + hop link).
 
-## 8. Helper unit tests (`e2e` tag)
+## 8. Helper unit tests (`integration` tag)
 - [ ] `ping`-output frag-needed parser.
 - [ ] Control-plane discovery parser.
 - [ ] `ip route get` MTU parser.
@@ -55,12 +55,12 @@ and `test/e2e/` files carry `//go:build e2e`.
       convergence + metrics/logs → cleanup).
 - [ ] `lab/README.md`: single-cluster topology, commands, `LAB_REUSE`/`LAB_KEEP`,
       prerequisites; link the runbook.
-- [ ] `lab/Makefile` (hand-maintained): `e2e` / `e2e-reuse` / `e2e-keep` targets
-      (`go test -tags e2e -timeout 20m ./test/e2e/...`).
+- [ ] `lab/Makefile` (hand-maintained): `integration` / `integration-reuse` / `integration-keep` targets
+      (`go test -tags integration -timeout 20m ./test/integration/...`).
 
 ## 10. Build verification
-- [ ] `go build -tags e2e ./...` and `go vet -tags e2e ./...` clean.
+- [ ] `go build -tags integration ./...` and `go vet -tags integration ./...` clean.
 - [ ] `go test ./...` (no tag) green (suite excluded).
-- [ ] `make -C lab e2e` passes `udp` on Linux and macOS Docker Desktop.
+- [ ] `make -C lab integration` passes `udp` on Linux and macOS Docker Desktop.
 
 _Note: never edit the generated root `Makefile`; only `lab/Makefile` or `Makefile.maker.yaml`._

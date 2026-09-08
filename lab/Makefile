@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: e2e e2e-reuse e2e-keep \
+.PHONY: integration integration-keep \
         observe-node observe-replication \
         down status help
 
 SCRIPTS := scripts
 GINKGO_FLAGS ?=
 
-## Go e2e test suite
+## Go integration test suite
 
 observe-node: ## tcpdump ICMP frag-needed on cluster node (CLUSTER=a|b NODE=worker|worker2)
 	@$(SCRIPTS)/observe.sh node
@@ -27,13 +27,13 @@ down: ## Remove lab (single kind cluster + transit network)
 	kind delete cluster --name pmtud 2>/dev/null || true
 	docker network rm pmtud-transit 2>/dev/null || true
 
-## Go e2e suite
+## Go integration suite
 
-e2e: ## Run Go e2e suite (provisions, tests legacy, l2, udp, tears down)
-	cd .. && REPO_ROOT=$$(pwd) go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+integration: ## Run Go integration suite (provisions, tests legacy, l2, udp, tears down)
+	cd .. && REPO_ROOT=$$(pwd) go test -tags integration -timeout 20m ./test/integration/... $(GINKGO_FLAGS)
 
-e2e-keep: ## Run e2e but keep lab after (for manual inspection)
-	cd .. && REPO_ROOT=$$(pwd) LAB_KEEP=1 go test -tags e2e -timeout 20m ./test/e2e/... $(GINKGO_FLAGS)
+integration-keep: ## Run integration suite but keep lab after (for manual inspection)
+	cd .. && REPO_ROOT=$$(pwd) LAB_KEEP=1 go test -tags integration -timeout 20m ./test/integration/... $(GINKGO_FLAGS)
 
 ## Help
 

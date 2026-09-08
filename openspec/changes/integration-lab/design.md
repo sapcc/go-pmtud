@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# E2E Lab — Design
+# Integration Lab — Design
 
 **Goal:** A single-binary Go end-to-end test that provisions a Kind cluster,
 deploys go-pmtud, and proves that an ICMP fragmentation-needed captured on one
@@ -154,7 +154,7 @@ interface sidesteps docker networking entirely and works on Linux and macOS alik
 (The `pmtud-transit` network is used only to add a second interface for capture;
 its MTU is left at the default and is irrelevant to the frag-needed arithmetic.)
 
-## `lab` package (all `//go:build e2e`)
+## `lab` package (all `//go:build integration`)
 
 | File | Responsibility |
 |---|---|
@@ -170,7 +170,7 @@ Kept YAML: `lab/configs/kind-cluster.yaml` (1 control-plane + 2 workers),
 `lab/manifests/pmtud-daemonset.yaml`, `lab/manifests/rbac.yaml`. No router image,
 no `podinfo`, no per-network docker configs.
 
-## Suite (`test/e2e/`, `//go:build e2e`)
+## Suite (`test/integration/`, `//go:build integration`)
 
 `suite_test.go` — `RunSpecs` + `BeforeSuite`/`AfterSuite` drive the lifecycle;
 `LAB_REUSE`/`LAB_KEEP` env knobs. Iterates `legacy`, `l2`, `udp`, each in an
@@ -258,14 +258,14 @@ Referenced from `lab/README.md`.
 
 ## Testing strategy
 
-1. `go build -tags e2e ./...` and `go vet -tags e2e ./...` clean.
+1. `go build -tags integration ./...` and `go vet -tags integration ./...` clean.
 2. `go test ./...` (no tag) green — the suite is excluded, so unit CI needs no
    docker/kind.
-3. `make -C lab e2e` passes `legacy`, `l2`, and `udp` on Linux **and** macOS
+3. `make -C lab integration` passes `legacy`, `l2`, and `udp` on Linux **and** macOS
    Docker Desktop, storm-free (peer `recv` stays 0).
 4. Pure helpers (`ping`-output parser, `ip route get` MTU parser, transit-IP and
    `sent_packets_peer` label parsing) get small table tests compiled under the
-   `e2e` tag.
+   `integration` tag.
 
 ## Open considerations
 

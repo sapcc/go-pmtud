@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
 // SPDX-License-Identifier: Apache-2.0
 
-//go:build e2e
+//go:build integration
 
-package e2e
+package integration
 
 import (
 	"testing"
@@ -29,7 +29,7 @@ var testLab *lab.Lab
 
 func TestE2E(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "go-pmtud e2e")
+	ginkgo.RunSpecs(t, "go-pmtud integration")
 }
 
 var _ = ginkgo.BeforeSuite(func(ctx ginkgo.SpecContext) {
