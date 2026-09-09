@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -43,4 +44,12 @@ var _ = ginkgo.AfterSuite(func(ctx ginkgo.SpecContext) {
 	if testLab != nil {
 		gomega.Expect(testLab.Teardown(ctx)).To(gomega.Succeed())
 	}
+})
+
+var _ = ginkgo.ReportAfterEach(func(report ginkgo.SpecReport) {
+	if !report.Failed() || testLab == nil {
+		return
+	}
+	ginkgo.GinkgoWriter.Println("\n--- diagnostic dump ---")
+	testLab.DumpDiagnostics(context.Background(), ginkgo.GinkgoWriter)
 })

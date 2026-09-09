@@ -8,6 +8,7 @@ package lab
 import (
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -160,4 +161,59 @@ func (l *Lab) SentPacketsPeer(node, peerNode string) (int, error) {
 		return 0, fmt.Errorf("scrape metrics on %s: %w", node, err)
 	}
 	return sumMetricPeer(out, "go_pmtud_sent_packets_peer", peerIP), nil
+}
+
+// DumpDiagnostics writes a failure snapshot to w: pod status, daemon logs,
+// per-node go-pmtud metrics, route state on each worker, and the hop interface
+// on the control-plane. All operations are best-effort — errors are printed
+// inline so a partial dump is always produced.
+func (l *Lab) DumpDiagnostics(ctx context.Context, w io.Writer) {
+	sec := func(title string) { fmt.Fprintf(w, "\n=== %s ===\n", title) }
+	kubectl := func(args ...string) {
+		all := append([]string{"--kubeconfig", l.Cluster.KubeconfigPath}, args...)
+		out, err := exec.CommandContext(ctx, "kubectl", all...).CombinedOutput()
+		if err != nil {
+			fmt.Fprintf(w, "kubectl %v: %v\n%s\n", args, err, out)
+		} else {
+			w.Write(out) //nolint:errcheck
+		}
+	}
+	dexec := func(node string, args ...string) {
+		out, err := dockerExec(node, args...)
+		if err != nil {
+			fmt.Fprintf(w, "docker exec %s %v: %v\n", node, args, err)
+		} else {
+			fmt.Fprintln(w, out)
+		}
+	}
+
+	sec("Pod status (kube-system)")
+	kubectl("get", "pods", "-n", "kube-system", "-o", "wide")
+
+	sec("Daemon logs (go-pmtud, last 50 lines per pod)")
+	kubectl("logs", "-n", "kube-system", "-l", "app=go-pmtud",
+		"--all-containers", "--prefix", "--tail=50")
+
+	for _, node := range l.Cluster.Workers {
+		sec("go-pmtud metrics on " + node)
+		raw, err := dockerExec(node, "curl", "-s", "http://127.0.0.1:"+metricsPort+"/metrics")
+		if err != nil {
+			fmt.Fprintf(w, "scrape %s: %v\n", node, err)
+		} else {
+			for _, line := range strings.Split(raw, "\n") {
+				if strings.HasPrefix(line, "go_pmtud_") ||
+					strings.HasPrefix(line, "# HELP go_pmtud") ||
+					strings.HasPrefix(line, "# TYPE go_pmtud") {
+					fmt.Fprintln(w, line)
+				}
+			}
+		}
+
+		sec("Routes on " + node)
+		dexec(node, "ip", "route", "get", l.BlackholeIP)
+		dexec(node, "ip", "route", "show")
+	}
+
+	sec("Hop interfaces on control-plane (" + l.Cluster.ControlPlane + ")")
+	dexec(l.Cluster.ControlPlane, "ip", "link", "show")
 }
