@@ -187,8 +187,8 @@ func (l *Lab) DumpDiagnostics(ctx context.Context, w io.Writer) {
 		}
 	}
 
-	sec("Pod status (kube-system)")
-	kubectl("get", "pods", "-n", "kube-system", "-o", "wide")
+	sec("Pod status (all namespaces)")
+	kubectl("get", "pods", "-A", "-o", "wide")
 
 	sec("Daemon logs (go-pmtud, last 50 lines per pod)")
 	kubectl("logs", "-n", "kube-system", "-l", "k8s-app=pmtud",
