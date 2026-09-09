@@ -191,7 +191,7 @@ func (l *Lab) DumpDiagnostics(ctx context.Context, w io.Writer) {
 	kubectl("get", "pods", "-n", "kube-system", "-o", "wide")
 
 	sec("Daemon logs (go-pmtud, last 50 lines per pod)")
-	kubectl("logs", "-n", "kube-system", "-l", "app=go-pmtud",
+	kubectl("logs", "-n", "kube-system", "-l", "app.kubernetes.io/name=go-pmtud",
 		"--all-containers", "--prefix", "--tail=50")
 
 	for _, node := range l.Cluster.Workers {
