@@ -6,6 +6,7 @@ package nflog
 import (
 	"context"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/florianl/go-nflog/v2"
@@ -161,10 +162,5 @@ func isIgnoredNetwork(ip net.IP, networks []*net.IPNet) bool {
 }
 
 func isPeerIP(ip net.IP, peerIPs []net.IP) bool {
-	for _, peer := range peerIPs {
-		if ip.Equal(peer) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(peerIPs, ip.Equal)
 }
