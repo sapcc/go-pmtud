@@ -94,7 +94,7 @@ func (nfc *Controller) handlePacket(ctx context.Context, attrs nflog.Attribute) 
 		return 0
 	}
 
-	var peerIPs []string
+	var peerIPs []net.IP
 	cfg.PeerMutex.Lock()
 	for _, ip := range cfg.PeerList {
 		peerIPs = append(peerIPs, ip)
@@ -160,9 +160,9 @@ func isIgnoredNetwork(ip net.IP, networks []*net.IPNet) bool {
 	return false
 }
 
-func isPeerIP(ip net.IP, peerIPs []string) bool {
+func isPeerIP(ip net.IP, peerIPs []net.IP) bool {
 	for _, peer := range peerIPs {
-		if ip.Equal(net.ParseIP(peer)) {
+		if ip.Equal(peer) {
 			return true
 		}
 	}

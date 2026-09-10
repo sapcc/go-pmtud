@@ -71,7 +71,7 @@ func init() {
 	}
 
 	metrics.Registry.MustRegister(metr.SentError, metr.Error, metr.SentPacketsPeer, metr.SentPackets, metr.RecvPackets, metr.InjectedPackets, metr.CallbackDuration)
-	cfg.PeerList = make(map[string]string)
+	cfg.PeerList = make(map[string]net.IP)
 }
 
 func preRunRootCmd(cmd *cobra.Command, args []string) error {

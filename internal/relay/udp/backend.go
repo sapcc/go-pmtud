@@ -53,7 +53,7 @@ func (ub *backend) peers() []net.IP {
 	defer ub.cfg.PeerMutex.Unlock()
 	var peerIPs []net.IP
 	for _, peerIP := range ub.cfg.PeerList {
-		peerIPs = append(peerIPs, net.ParseIP(peerIP))
+		peerIPs = append(peerIPs, peerIP)
 	}
 	return peerIPs
 }
@@ -62,7 +62,7 @@ func (ub *backend) isKnownPeer(ip net.IP) bool {
 	ub.cfg.PeerMutex.Lock()
 	defer ub.cfg.PeerMutex.Unlock()
 	for _, peerIP := range ub.cfg.PeerList {
-		if ip.Equal(net.ParseIP(peerIP)) {
+		if ip.Equal(peerIP) {
 			return true
 		}
 	}

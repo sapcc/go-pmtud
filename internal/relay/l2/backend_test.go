@@ -69,7 +69,7 @@ func newTestBackend() (*backend, *fakeConn) {
 	src := mustParseMAC("11:22:33:44:55:66")
 	cfg := &config.Config{
 		NodeName: "test-node",
-		PeerList: map[string]string{},
+		PeerList: map[string]net.IP{},
 	}
 	return &backend{
 		cfg:   cfg,
@@ -82,8 +82,8 @@ func newTestBackend() (*backend, *fakeConn) {
 
 func TestL2SendWritesFramePerPeer(t *testing.T) {
 	lb, fc := newTestBackend()
-	lb.cfg.PeerList["a"] = "10.0.0.1"
-	lb.cfg.PeerList["b"] = "10.0.0.2"
+	lb.cfg.PeerList["a"] = net.ParseIP("10.0.0.1")
+	lb.cfg.PeerList["b"] = net.ParseIP("10.0.0.2")
 
 	payload := []byte{0x45, 0x00, 0x00, 0x1c}
 	if err := lb.Send(context.Background(), relayPacket(payload)); err != nil {

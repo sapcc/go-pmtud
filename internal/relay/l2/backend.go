@@ -63,7 +63,7 @@ func (lb *backend) peerIPs() []string {
 	defer lb.cfg.PeerMutex.Unlock()
 	ips := make([]string, 0, len(lb.cfg.PeerList))
 	for _, ip := range lb.cfg.PeerList {
-		ips = append(ips, ip)
+		ips = append(ips, ip.String())
 	}
 	return ips
 }

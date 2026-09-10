@@ -42,7 +42,7 @@ func (f *fakeInjector) snapshot() [][]byte {
 	return out
 }
 
-func newTestBackend(t *testing.T, peers map[string]string) (*backend, *fakeInjector) {
+func newTestBackend(t *testing.T, peers map[string]net.IP) (*backend, *fakeInjector) {
 	t.Helper()
 	listener, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
 	if err != nil {
@@ -66,7 +66,7 @@ func newTestBackend(t *testing.T, peers map[string]string) (*backend, *fakeInjec
 
 func TestNew(t *testing.T) {
 	d := relay.Deps{
-		Cfg: &config.Config{NodeName: "n", PeerList: make(map[string]string)},
+		Cfg: &config.Config{NodeName: "n", PeerList: make(map[string]net.IP)},
 		Log: logr.Discard(),
 	}
 	r, err := New(d)
@@ -79,9 +79,9 @@ func TestNew(t *testing.T) {
 }
 
 func TestIsKnownPeer(t *testing.T) {
-	ub, _ := newTestBackend(t, map[string]string{
-		"peer-1": "10.0.0.1",
-		"peer-2": "10.0.0.2",
+	ub, _ := newTestBackend(t, map[string]net.IP{
+		"peer-1": net.ParseIP("10.0.0.1"),
+		"peer-2": net.ParseIP("10.0.0.2"),
 	})
 
 	testCases := []struct {
@@ -106,7 +106,7 @@ func TestIsKnownPeer(t *testing.T) {
 }
 
 func TestSendToUnknownPeer(t *testing.T) {
-	ub, fake := newTestBackend(t, map[string]string{"peer-1": "10.0.0.1"})
+	ub, fake := newTestBackend(t, map[string]net.IP{"peer-1": net.ParseIP("10.0.0.1")})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -134,7 +134,7 @@ func TestSendToUnknownPeer(t *testing.T) {
 }
 
 func TestInvalidPayload(t *testing.T) {
-	ub, fake := newTestBackend(t, map[string]string{"localhost": "127.0.0.1"})
+	ub, fake := newTestBackend(t, map[string]net.IP{"localhost": net.ParseIP("127.0.0.1")})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -161,7 +161,7 @@ func TestInvalidPayload(t *testing.T) {
 }
 
 func TestValidPayload(t *testing.T) {
-	ub, fake := newTestBackend(t, map[string]string{"localhost": "127.0.0.1"})
+	ub, fake := newTestBackend(t, map[string]net.IP{"localhost": net.ParseIP("127.0.0.1")})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()

@@ -43,7 +43,7 @@ func attrsWithPayload(payload []byte) nflog.Attribute {
 // TestHandlePacket_RelaysValidPacket verifies that a well-formed ICMP frag-needed
 // packet is forwarded to the relay with the correct payload and source node.
 func TestHandlePacket_RelaysValidPacket(t *testing.T) {
-	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]string)}
+	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]net.IP)}
 	fr := &fakeRelay{}
 	c := newTestController(cfg, fr)
 
@@ -63,7 +63,7 @@ func TestHandlePacket_RelaysValidPacket(t *testing.T) {
 
 // TestHandlePacket_NilPayload verifies that a callback with no packet copy is dropped.
 func TestHandlePacket_NilPayload(t *testing.T) {
-	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]string)}
+	cfg := &config.Config{NodeName: "node-a", PeerList: make(map[string]net.IP)}
 	fr := &fakeRelay{}
 	c := newTestController(cfg, fr)
 
@@ -84,7 +84,7 @@ func TestHandlePacket_IgnoredNetwork(t *testing.T) {
 
 	cfg := &config.Config{
 		NodeName:       "node-a",
-		PeerList:       make(map[string]string),
+		PeerList:       make(map[string]net.IP),
 		IgnoreNetworks: []*net.IPNet{ignored},
 	}
 	fr := &fakeRelay{}
@@ -103,7 +103,7 @@ func TestHandlePacket_IgnoredNetwork(t *testing.T) {
 func TestHandlePacket_PeerIP(t *testing.T) {
 	cfg := &config.Config{
 		NodeName: "node-a",
-		PeerList: map[string]string{"peer-b": "192.168.1.1"}, // matches outer src in test packet
+		PeerList: map[string]net.IP{"peer-b": net.ParseIP("192.168.1.1")}, // matches outer src in test packet
 	}
 	fr := &fakeRelay{}
 	c := newTestController(cfg, fr)
@@ -173,7 +173,7 @@ func TestIsIgnoredNetwork(t *testing.T) {
 }
 
 func TestIsPeerIP(t *testing.T) {
-	peerIPs := []string{"10.0.1.1", "10.0.1.2", "172.16.0.5"}
+	peerIPs := []net.IP{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.2"), net.ParseIP("172.16.0.5")}
 
 	tests := []struct {
 		name string

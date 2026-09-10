@@ -5,6 +5,7 @@ package node
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -20,7 +21,7 @@ import (
 func TestReconcileIdempotency(t *testing.T) {
 	cfg := &config.Config{
 		NodeName: "local-node",
-		PeerList: make(map[string]string),
+		PeerList: make(map[string]net.IP),
 	}
 
 	node := &corev1.Node{
@@ -53,7 +54,7 @@ func TestReconcileIdempotency(t *testing.T) {
 		t.Fatalf("first reconcile failed: %v", err)
 	}
 
-	if cfg.PeerList["peer-node"] != "10.0.0.1" {
+	if cfg.PeerList["peer-node"].String() != "10.0.0.1" {
 		t.Fatalf("peer IP not updated: got %q", cfg.PeerList["peer-node"])
 	}
 
@@ -63,7 +64,7 @@ func TestReconcileIdempotency(t *testing.T) {
 		t.Fatalf("second reconcile failed: %v", err)
 	}
 
-	if cfg.PeerList["peer-node"] != "10.0.0.1" {
+	if cfg.PeerList["peer-node"].String() != "10.0.0.1" {
 		t.Fatalf("peer IP should remain unchanged: got %q", cfg.PeerList["peer-node"])
 	}
 
@@ -79,7 +80,7 @@ func TestReconcileIdempotency(t *testing.T) {
 		t.Fatalf("third reconcile failed: %v", err)
 	}
 
-	if cfg.PeerList["peer-node"] != "10.0.0.2" {
+	if cfg.PeerList["peer-node"].String() != "10.0.0.2" {
 		t.Fatalf("peer IP not updated to new value: got %q", cfg.PeerList["peer-node"])
 	}
 }
@@ -88,7 +89,7 @@ func TestReconcileIdempotency(t *testing.T) {
 func TestReconcileExcludesOwnNode(t *testing.T) {
 	cfg := &config.Config{
 		NodeName: "local-node",
-		PeerList: make(map[string]string),
+		PeerList: make(map[string]net.IP),
 	}
 
 	r := &Reconciler{

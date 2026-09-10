@@ -5,6 +5,7 @@ package node
 
 import (
 	"context"
+	"net"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -50,11 +51,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		return reconcile.Result{}, nil
 	}
 
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		log.Info("invalid IP for node, skipping", "ip", ip)
+		return reconcile.Result{}, nil
+	}
+
 	// only update if the IP has changed or doesn't exist yet to avoid unnecessary writes
-	if existingIP, exists := r.Cfg.PeerList[request.Name]; !exists || existingIP != ip {
+	if existingIP, exists := r.Cfg.PeerList[request.Name]; !exists || !existingIP.Equal(parsedIP) {
 		log.Info("updating peer", "ip", ip)
 		r.Cfg.PeerMutex.Lock()
-		r.Cfg.PeerList[request.Name] = ip
+		r.Cfg.PeerList[request.Name] = parsedIP
 		r.Cfg.PeerMutex.Unlock()
 	}
 
