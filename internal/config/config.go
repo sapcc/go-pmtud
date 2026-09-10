@@ -51,8 +51,7 @@ type Config struct {
 	PeerMutex sync.Mutex
 	PeerList  map[string]net.IP // nodeName → IP
 
-	IgnoreNetworksRaw []string     // raw CIDR strings from CLI
-	IgnoreNetworks    []*net.IPNet // parsed CIDRs
+	IgnoreNetworks []*net.IPNet
 
 	RelayBackend Backend
 }

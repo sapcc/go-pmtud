@@ -46,6 +46,7 @@ var rootCmd = &cobra.Command{
 	PreRunE: preRunRootCmd,
 }
 var cfg = conf.Config{}
+var ignoreNetworksRaw []string
 
 func init() {
 	viper.AutomaticEnv()
@@ -56,7 +57,7 @@ func init() {
 	rootCmd.PersistentFlags().Uint16Var(&cfg.NfGroup, "nflog_group", 33, "NFLOG group")
 	rootCmd.PersistentFlags().IntVar(&cfg.TimeToLive, "ttl", 1, "TTL for resent packets")
 	rootCmd.PersistentFlags().IntVar(&cfg.ReplicationPort, "replication-port", 4390, "UDP port for ICMP packet replication between nodes. Only used when relay-backend=udp")
-	rootCmd.PersistentFlags().StringSliceVar(&cfg.IgnoreNetworksRaw, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma-separated CIDRs)")
+	rootCmd.PersistentFlags().StringSliceVar(&ignoreNetworksRaw, "ignore-networks", nil, "Do not resend ICMP frag-needed packets originated from specified networks (comma-separated CIDRs)")
 	rootCmd.PersistentFlags().StringVar(&cfg.KubeContext, "kube_context", "", "kube-context to use")
 	cfg.RelayBackend = conf.BackendL2
 	rootCmd.PersistentFlags().Var(&cfg.RelayBackend, "relay-backend", "Relay backend: l2 (default) or udp")
@@ -91,7 +92,7 @@ func preRunRootCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 	// Parse ignore-networks CIDRs
-	for _, cidr := range cfg.IgnoreNetworksRaw {
+	for _, cidr := range ignoreNetworksRaw {
 		_, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
 			return fmt.Errorf("invalid ignore-network CIDR %q: %w", cidr, err)
