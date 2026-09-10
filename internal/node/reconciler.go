@@ -6,7 +6,6 @@ package node
 import (
 	"context"
 	"net"
-	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +26,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	log := r.Log.WithValues("node", request.Name)
 
 	// Exclude own node
-	if strings.Compare(r.Cfg.NodeName, request.Name) == 0 {
+	if r.Cfg.NodeName == request.Name {
 		return reconcile.Result{}, nil
 	}
 
