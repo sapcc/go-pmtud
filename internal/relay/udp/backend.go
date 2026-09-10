@@ -160,5 +160,5 @@ func (ub *backend) handlePacket(inj injector, remoteAddr *net.UDPAddr, payload [
 	}
 
 	metrics.InjectedPackets.WithLabelValues(ub.cfg.NodeName, remoteAddr.IP.String()).Inc()
-	ub.log.Info("injected relayed ICMP packet", "from", remoteAddr.IP.String())
+	ub.log.Info("injected relayed ICMP packet", "from", remoteAddr.IP.String(), "src", info.SrcIP, "dst", info.DstIP, "mtu", info.MTU)
 }
