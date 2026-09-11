@@ -24,7 +24,7 @@ A reproducible Kind-based lab for testing go-pmtud ICMP replication. The suite r
 │  │  │  MTU: 1280   │  │  MTU: 1280 via dummy net │  │   │
 │  │  └──────┬───────┘  │                          │  │   │
 │  │         │          └──────────────────────────┘  │   │
-│  │  ┌──────▼──────────┐  ┌──────────────────────┐   │   │
+│  │  ┌──────▼─────────┐  ┌───────────────────-───┐   │   │
 │  │  │  Worker-1      │  │  Worker-2             │   │   │
 │  │  │  MTU: 9000     │  │  MTU: 9000            │   │   │
 │  │  └────────────────┘  └──────────────────────-┘   │   │
@@ -44,13 +44,6 @@ The lab simulates a **cross-zone L3 boundary** within a single cluster:
 - **Trigger:** Packets from workers destined through the control-plane that exceed 1280 bytes with DF bit set prompt ICMP fragmentation-needed
 - **Native capture:** The originating worker receives the ICMP directly via NFLOG
 - **Relay test:** Peer workers rely on go-pmtud's relay to propagate the PMTU constraint; the suite redeploys for each backend (`legacy`, `l2`, `udp`) and asserts replication end-to-end for each
-
-## Prerequisites
-
-- Docker (or Docker Desktop)
-- [kind](https://kind.sigs.k8s.io/) v0.20+
-- kubectl
-- Go 1.22+ (to build go-pmtud image)
 
 ## Quick Start
 
@@ -116,28 +109,6 @@ The lab uses the control-plane node as a relay hop with reduced MTU. Setup:
 ## Relay Backends
 
 The suite tests all three backend scenarios against the same Kind cluster. Each `ginkgo.Context` redeploys the DaemonSet with the appropriate backend before running specs.
-
-### L2 Backend (default in production)
-Sends captured packets as raw Ethernet frames over the interface from `--iface_names`. Requires shared L2 adjacency (same VLAN). No TUN device is created. NFLOG rule captures on the primary interface:
-```sh
-iptables -t raw -A PREROUTING -i <iface> -p icmp -m icmp --icmp-type 3/4 -j NFLOG --nflog-group 33
-```
-
-### UDP Backend
-Sends captured packets directly via UDP port 4390 to peer nodes. Works across L3 boundaries. Injects received packets via the `pmtud0` TUN device. NFLOG rule must exclude the TUN interface:
-```sh
-iptables -t raw -A PREROUTING -p icmp -m icmp --icmp-type 3/4 ! -i pmtud0 -j NFLOG --nflog-group 33
-```
-
-## Real-Cluster Validation
-
-Beyond the Kind lab, go-pmtud can be validated on real Kubernetes clusters with actual MTU boundaries (cross-zone links, node MTU asymmetries, etc.). See [RUNBOOK-real-cluster.md](RUNBOOK-real-cluster.md) for step-by-step procedures covering:
-
-- Prerequisites (≥2 nodes, MTU boundary or ability to create one)
-- Deployment (image build, RBAC, DaemonSet)
-- Trigger (existing or simulated MTU boundary)
-- Observation (logs, metrics)
-- Cleanup
 
 ## Known Limitations
 
