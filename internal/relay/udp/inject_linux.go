@@ -30,6 +30,13 @@ type Injector struct {
 
 // newInjector creates a new TUN injector with the given device name
 func newInjector(name string) (*Injector, error) {
+	// Clean up a stale TUN left by a previous unclean shutdown.
+	if link, err := netlink.LinkByName(name); err == nil {
+		if err := netlink.LinkDel(link); err != nil {
+			return nil, fmt.Errorf("delete stale TUN %s: %w", name, err)
+		}
+	}
+
 	fd, err := createTUN(name)
 	if err != nil {
 		return nil, err
