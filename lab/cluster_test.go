@@ -33,16 +33,16 @@ func TestParseIfaceMTU(t *testing.T) {
 }
 
 func TestPatchDaemonSet(t *testing.T) {
-	in := "args:\n- --relay-backend=$(RELAY_BACKEND)\n- --iface_names=eth0\n- --iface_mtu=$(IFACE_MTU)\n"
+	in := "args:\n- $(RELAY_BACKEND_ARG)\n- --iface_mtu=$(IFACE_MTU)\n"
 
-	l2 := patchDaemonSet(in, "l2", 65535, false)
+	l2 := patchDaemonSet(in, "l2", 65535)
 	if !strings.Contains(l2, "--relay-backend=l2") || !strings.Contains(l2, "--iface_mtu=65535") {
 		t.Fatalf("l2 patch wrong:\n%s", l2)
 	}
 
-	legacy := patchDaemonSet(in, "l2", 1500, true)
+	legacy := patchDaemonSet(in, "legacy", 1500)
 	if strings.Contains(legacy, "--relay-backend") {
-		t.Errorf("legacy must strip --relay-backend:\n%s", legacy)
+		t.Errorf("legacy must omit --relay-backend:\n%s", legacy)
 	}
 	if !strings.Contains(legacy, "--iface_mtu=1500") {
 		t.Errorf("legacy must still carry --iface_mtu:\n%s", legacy)

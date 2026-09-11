@@ -29,7 +29,7 @@ spec:
           args:
             - --nflog_group=33
             - --nodename=$(NODE_NAME)
-            - --relay-backend=$(RELAY_BACKEND)
+            - $(RELAY_BACKEND_ARG)
             - --iface_names=eth0
             - --iface_mtu=$(IFACE_MTU)
           env:
@@ -37,8 +37,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: RELAY_BACKEND
-              value: "$(RELAY_BACKEND)"
           securityContext:
             privileged: true
             capabilities:

@@ -129,13 +129,6 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 		return fmt.Errorf("read daemonset: %w", err)
 	}
 
-	backendValue := backend
-	stripRelay := false
-	if backend == "legacy" {
-		backendValue = "l2"
-		stripRelay = true
-	}
-
 	if len(c.Workers) == 0 {
 		return fmt.Errorf("no workers to detect eth0 MTU")
 	}
@@ -144,7 +137,7 @@ func (c *Cluster) applyDaemonSet(ctx context.Context, path string, backend strin
 		return err
 	}
 
-	patched := patchDaemonSet(string(data), backendValue, mtu, stripRelay)
+	patched := patchDaemonSet(string(data), backend, mtu)
 
 	f, err := os.CreateTemp("", "daemonset-*.yaml")
 	if err != nil {
@@ -178,23 +171,24 @@ func detectEth0MTU(node string) (int, error) {
 	return parseIfaceMTU(out)
 }
 
-// patchDaemonSet substitutes the manifest placeholders. When stripRelayBackend
-// is set (legacy), lines carrying --relay-backend are removed so the daemon
-// defaults to l2 on its own.
-func patchDaemonSet(data, backendValue string, ifaceMTU int, stripRelayBackend bool) string {
-	patched := strings.ReplaceAll(data, "$(RELAY_BACKEND)", backendValue)
-	patched = strings.ReplaceAll(patched, "$(IFACE_MTU)", strconv.Itoa(ifaceMTU))
-	if stripRelayBackend {
-		lines := strings.Split(patched, "\n")
+// patchDaemonSet substitutes the manifest placeholders. For the legacy backend
+// the line carrying $(RELAY_BACKEND_ARG) is dropped entirely, omitting the flag.
+func patchDaemonSet(data, backend string, ifaceMTU int) string {
+	const placeholder = "$(RELAY_BACKEND_ARG)"
+	var patched string
+	if backend == "legacy" {
+		lines := strings.Split(data, "\n")
 		kept := lines[:0]
 		for _, l := range lines {
-			if !strings.Contains(l, "--relay-backend=") {
+			if !strings.Contains(l, placeholder) {
 				kept = append(kept, l)
 			}
 		}
 		patched = strings.Join(kept, "\n")
+	} else {
+		patched = strings.ReplaceAll(data, placeholder, "--relay-backend="+backend)
 	}
-	return patched
+	return strings.ReplaceAll(patched, "$(IFACE_MTU)", strconv.Itoa(ifaceMTU))
 }
 
 func (c *Cluster) waitRollout(ctx context.Context, ns, name string) error {
