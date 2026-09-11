@@ -30,6 +30,16 @@ func ifnamePad(name string) []byte {
 // Equivalent shell: iptables-nft -t raw -I PREROUTING -i <iifname> -p icmp
 //
 //	--icmp-type 3/4 -j NFLOG --nflog-group <nfGroup>
+//
+// iifname is cfg.DefaultInterface — the interface carrying the default route,
+// resolved automatically at startup; it is not a CLI flag.
+//
+// The positive iifname match (only capture on the primary interface) is the
+// loop-prevention mechanism for both relay backends:
+//   - L2: replicated frames arrive on the replication interface (--iface_names),
+//     which is distinct from iifname, so they are never re-captured.
+//   - UDP: injected packets arrive on the TUN device (pmtud0), which is also
+//     distinct from iifname, so they are never re-captured.
 func buildNFTObjects(iifname string, nfGroup uint16) (*nftables.Table, *nftables.Chain, *nftables.Rule) {
 	table := &nftables.Table{
 		Family: nftables.TableFamilyIPv4,

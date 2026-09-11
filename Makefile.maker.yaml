@@ -33,6 +33,9 @@ githubWorkflow:
       - semver
       - sha
 
+controllerGen:
+  enabled: false
+
 renovate:
   enabled: true
   assignees:
