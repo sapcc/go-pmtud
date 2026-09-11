@@ -149,3 +149,51 @@ func TestL2StartClosesConnOnContextCancel(t *testing.T) {
 func relayPacket(payload []byte) relay.RelayPacket {
 	return relay.RelayPacket{Payload: payload, SrcNode: "test-node"}
 }
+
+func TestL2PeerRemovedEvictsCache(t *testing.T) {
+	// Use a call-counting resolver to observe whether ARP is re-issued.
+	mac := mustParseMAC("aa:bb:cc:dd:ee:ff")
+	f := &fakeResolver{mac: mac}
+	fc := &fakeConn{}
+	src := mustParseMAC("11:22:33:44:55:66")
+	peerIP := net.ParseIP("10.0.0.1")
+	lb := &backend{
+		cfg: &config.Config{
+			NodeName: "test-node",
+			PeerList: map[string]net.IP{"peer-a": peerIP},
+		},
+		log:   logr.Discard(),
+		ifi:   &net.Interface{Name: "eth0", HardwareAddr: src},
+		conn:  fc,
+		cache: newMACCache(f, time.Hour),
+	}
+
+	payload := []byte{0x45, 0x00, 0x00, 0x1c}
+
+	// First Send resolves the MAC (cache miss).
+	if err := lb.Send(context.Background(), relayPacket(payload)); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if f.calls != 1 {
+		t.Fatalf("want 1 resolve call after first Send, got %d", f.calls)
+	}
+
+	// Second Send hits the cache; no re-resolve.
+	if err := lb.Send(context.Background(), relayPacket(payload)); err != nil {
+		t.Fatalf("second Send: %v", err)
+	}
+	if f.calls != 1 {
+		t.Fatalf("want still 1 resolve call (cache hit), got %d", f.calls)
+	}
+
+	// PeerRemoved evicts the cache entry.
+	lb.PeerRemoved("peer-a", peerIP)
+
+	// Next Send must re-resolve.
+	if err := lb.Send(context.Background(), relayPacket(payload)); err != nil {
+		t.Fatalf("Send after PeerRemoved: %v", err)
+	}
+	if f.calls != 2 {
+		t.Errorf("want 2 resolve calls after PeerRemoved, got %d", f.calls)
+	}
+}

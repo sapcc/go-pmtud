@@ -5,6 +5,7 @@ package relay
 
 import (
 	"context"
+	"net"
 
 	"github.com/go-logr/logr"
 
@@ -21,6 +22,9 @@ type RelayPacket struct {
 type Relay interface {
 	Send(ctx context.Context, pkt RelayPacket) error
 	Start(ctx context.Context) error
+	// PeerRemoved is called when a peer node is removed from or has its IP
+	// changed in the peer list, so backends can release per-peer resources.
+	PeerRemoved(nodeName string, ip net.IP)
 }
 
 // Deps contains dependencies for Relay backends

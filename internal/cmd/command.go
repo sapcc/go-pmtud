@@ -134,24 +134,6 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// add node-controller
-	c, err := controller.New("node-controller", mgr, controller.Options{
-		Reconciler: &node.Reconciler{
-			Log:    mgr.GetLogger().WithName("node-controller"),
-			Client: mgr.GetClient(),
-			Cfg:    &cfg,
-		},
-	})
-	if err != nil {
-		log.Error(err, "error creating node-controller")
-		return err
-	}
-	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}, &handler.TypedEnqueueRequestForObject[*corev1.Node]{}))
-	if err != nil {
-		log.Error(err, "error watching nodes")
-		return err
-	}
-
 	// build relay backend
 	deps := relay.Deps{
 		Cfg: &cfg,
@@ -168,6 +150,25 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	}
 	if err != nil {
 		log.Error(err, "error creating relay backend")
+		return err
+	}
+
+	// add node-controller
+	c, err := controller.New("node-controller", mgr, controller.Options{
+		Reconciler: &node.Reconciler{
+			Log:           mgr.GetLogger().WithName("node-controller"),
+			Client:        mgr.GetClient(),
+			Cfg:           &cfg,
+			OnPeerRemoved: relayBackend.PeerRemoved,
+		},
+	})
+	if err != nil {
+		log.Error(err, "error creating node-controller")
+		return err
+	}
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}, &handler.TypedEnqueueRequestForObject[*corev1.Node]{}))
+	if err != nil {
+		log.Error(err, "error watching nodes")
 		return err
 	}
 

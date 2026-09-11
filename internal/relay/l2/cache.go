@@ -53,3 +53,10 @@ func (c *macCache) get(ip string) (net.HardwareAddr, error) {
 	c.entries[ip] = macEntry{mac: mac, expires: c.now().Add(c.ttl)}
 	return mac, nil
 }
+
+// delete removes the cache entry for ip if present.
+func (c *macCache) delete(ip string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, ip)
+}

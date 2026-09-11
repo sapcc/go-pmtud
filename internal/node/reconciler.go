@@ -17,9 +17,10 @@ import (
 )
 
 type Reconciler struct {
-	Log    logr.Logger
-	Client client.Client
-	Cfg    *config.Config
+	Log          logr.Logger
+	Client       client.Client
+	Cfg          *config.Config
+	OnPeerRemoved func(nodeName string, ip net.IP)
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -36,8 +37,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		if k8serr.IsNotFound(err) {
 			log.Info("node deleted, removing from peer list")
 			r.Cfg.PeerMutex.Lock()
+			oldIP := r.Cfg.PeerList[request.Name]
 			delete(r.Cfg.PeerList, request.Name)
 			r.Cfg.PeerMutex.Unlock()
+			if r.OnPeerRemoved != nil && oldIP != nil {
+				r.OnPeerRemoved(request.Name, oldIP)
+			}
 			return reconcile.Result{}, nil
 		}
 		log.Error(err, "error getting node")
@@ -62,6 +67,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		r.Cfg.PeerMutex.Lock()
 		r.Cfg.PeerList[request.Name] = parsedIP
 		r.Cfg.PeerMutex.Unlock()
+		if r.OnPeerRemoved != nil && exists {
+			r.OnPeerRemoved(request.Name, existingIP)
+		}
 	}
 
 	return reconcile.Result{}, nil

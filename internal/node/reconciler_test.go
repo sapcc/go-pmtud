@@ -16,6 +16,11 @@ import (
 	"github.com/sapcc/go-pmtud/internal/config"
 )
 
+type peerRemovalEvent struct {
+	nodeName string
+	ip       net.IP
+}
+
 // TestReconcileIdempotency verifies that reconciling the same peer IP
 // multiple times only updates the peer list on the first update and when the IP changes.
 func TestReconcileIdempotency(t *testing.T) {
@@ -156,5 +161,122 @@ func TestGetInternalIP(t *testing.T) {
 				t.Errorf("getInternalIP() = %q, want %q", got, tt.expected)
 			}
 		})
+	}
+}
+
+// TestReconcilePeerRemovedOnNodeDelete verifies that OnPeerRemoved is called
+// with the node's last known IP when its Kubernetes object is deleted.
+func TestReconcilePeerRemovedOnNodeDelete(t *testing.T) {
+	var got []peerRemovalEvent
+	cfg := &config.Config{
+		NodeName: "local-node",
+		PeerList: map[string]net.IP{
+			"peer-node": net.ParseIP("10.0.0.1"),
+		},
+	}
+	// No node object in the fake client → reconcile sees IsNotFound.
+	r := &Reconciler{
+		Log:    logr.Discard(),
+		Client: fake.NewClientBuilder().Build(),
+		Cfg:    cfg,
+		OnPeerRemoved: func(nodeName string, ip net.IP) {
+			got = append(got, peerRemovalEvent{nodeName, ip})
+		},
+	}
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{Name: "peer-node"})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if _, still := cfg.PeerList["peer-node"]; still {
+		t.Error("peer-node still in PeerList after deletion")
+	}
+	if len(got) != 1 {
+		t.Fatalf("OnPeerRemoved called %d times, want 1", len(got))
+	}
+	if got[0].nodeName != "peer-node" {
+		t.Errorf("OnPeerRemoved node = %q, want %q", got[0].nodeName, "peer-node")
+	}
+	if !got[0].ip.Equal(net.ParseIP("10.0.0.1")) {
+		t.Errorf("OnPeerRemoved ip = %v, want 10.0.0.1", got[0].ip)
+	}
+}
+
+// TestReconcilePeerRemovedOnIPChange verifies that OnPeerRemoved is called
+// with the old IP when a node's InternalIP changes.
+func TestReconcilePeerRemovedOnIPChange(t *testing.T) {
+	var got []peerRemovalEvent
+	cfg := &config.Config{
+		NodeName: "local-node",
+		PeerList: map[string]net.IP{
+			"peer-node": net.ParseIP("10.0.0.1"),
+		},
+	}
+	node := &corev1.Node{
+		Name: "peer-node",
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{Type: corev1.NodeInternalIP, Address: "10.0.0.2"},
+			},
+		},
+	}
+	r := &Reconciler{
+		Log:    logr.Discard(),
+		Client: fake.NewClientBuilder().WithObjects(node).Build(),
+		Cfg:    cfg,
+		OnPeerRemoved: func(nodeName string, ip net.IP) {
+			got = append(got, peerRemovalEvent{nodeName, ip})
+		},
+	}
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{Name: "peer-node"})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if !cfg.PeerList["peer-node"].Equal(net.ParseIP("10.0.0.2")) {
+		t.Errorf("PeerList has %v, want 10.0.0.2", cfg.PeerList["peer-node"])
+	}
+	if len(got) != 1 {
+		t.Fatalf("OnPeerRemoved called %d times, want 1", len(got))
+	}
+	if !got[0].ip.Equal(net.ParseIP("10.0.0.1")) {
+		t.Errorf("OnPeerRemoved ip = %v, want 10.0.0.1 (old IP)", got[0].ip)
+	}
+}
+
+// TestReconcilePeerRemovedNotCalledOnFirstAdd verifies that OnPeerRemoved is
+// NOT called when a brand-new peer is added (no old IP to evict).
+func TestReconcilePeerRemovedNotCalledOnFirstAdd(t *testing.T) {
+	var got []peerRemovalEvent
+	cfg := &config.Config{
+		NodeName: "local-node",
+		PeerList: map[string]net.IP{},
+	}
+	node := &corev1.Node{
+		Name: "peer-node",
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{Type: corev1.NodeInternalIP, Address: "10.0.0.1"},
+			},
+		},
+	}
+	r := &Reconciler{
+		Log:    logr.Discard(),
+		Client: fake.NewClientBuilder().WithObjects(node).Build(),
+		Cfg:    cfg,
+		OnPeerRemoved: func(nodeName string, ip net.IP) {
+			got = append(got, peerRemovalEvent{nodeName, ip})
+		},
+	}
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{Name: "peer-node"})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("OnPeerRemoved called %d times on first add, want 0", len(got))
 	}
 }

@@ -103,3 +103,11 @@ func (lb *backend) Start(ctx context.Context) error {
 	<-ctx.Done()
 	return lb.conn.Close()
 }
+
+// PeerRemoved evicts the MAC cache entry for the given peer IP so the next
+// Send triggers a fresh ARP resolution rather than using a potentially stale
+// mapping from the removed node.
+func (lb *backend) PeerRemoved(nodeName string, ip net.IP) {
+	lb.log.Info("evicting MAC cache entry for removed peer", "node", nodeName, "ip", ip)
+	lb.cache.delete(ip.String())
+}

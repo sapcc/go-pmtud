@@ -139,6 +139,10 @@ func (ub *backend) Start(ctx context.Context) error {
 	}
 }
 
+// PeerRemoved is a no-op for the UDP backend: there is no per-peer resource to
+// release (the shared send socket and peer list are the only state).
+func (ub *backend) PeerRemoved(_ string, _ net.IP) {}
+
 func (ub *backend) handlePacket(inj injector, remoteAddr *net.UDPAddr, payload []byte) {
 	if !ub.isKnownPeer(remoteAddr.IP) {
 		metrics.Error.WithLabelValues(ub.cfg.NodeName).Inc()
