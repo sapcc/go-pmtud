@@ -28,6 +28,8 @@ func (f *fakeRelay) Start(context.Context) error {
 	return nil
 }
 
+func (f *fakeRelay) PeerRemoved(_ string, _ net.IP) {}
+
 func newTestController(cfg *config.Config, r relay.Relay) *Controller {
 	return &Controller{
 		Log:   logr.Discard(),
