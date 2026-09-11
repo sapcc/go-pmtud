@@ -17,9 +17,9 @@ import (
 )
 
 type Reconciler struct {
-	Log          logr.Logger
-	Client       client.Client
-	Cfg          *config.Config
+	Log           logr.Logger
+	Client        client.Client
+	Cfg           *config.Config
 	OnPeerRemoved func(nodeName string, ip net.IP)
 }
 
