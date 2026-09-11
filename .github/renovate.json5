@@ -76,6 +76,12 @@
         "gomod"
       ],
       "enabled": true
+    },
+    {
+      "matchFileNames": [
+        "go.mod"
+      ],
+      "automerge": true
     }
   ],
   "prHourlyLimit": 0,
