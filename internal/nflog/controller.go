@@ -67,9 +67,11 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 		return nfc.handlePacket(ctx, attrs)
 	}
 
+	var nflogErr error
 	err = nf.RegisterWithErrorFunc(ctx, nflogCallback, func(err error) int {
 		log.Error(err, "nflog error")
 		metrics.Error.WithLabelValues(cfg.NodeName).Inc()
+		nflogErr = err
 		cancel()
 		return -1
 	})
@@ -83,7 +85,7 @@ func (nfc *Controller) Start(startCtx context.Context) error {
 	<-ctx.Done()
 	cancel()
 
-	return nil
+	return nflogErr
 }
 
 func (nfc *Controller) handlePacket(ctx context.Context, attrs nflog.Attribute) int {
