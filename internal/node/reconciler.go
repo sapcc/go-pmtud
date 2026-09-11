@@ -62,14 +62,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	// only update if the IP has changed or doesn't exist yet to avoid unnecessary writes
-	if existingIP, exists := r.Cfg.PeerList[request.Name]; !exists || !existingIP.Equal(parsedIP) {
+	r.Cfg.PeerMutex.Lock()
+	existingIP, exists := r.Cfg.PeerList[request.Name]
+	changed := !exists || !existingIP.Equal(parsedIP)
+	if changed {
 		log.Info("updating peer", "ip", ip)
-		r.Cfg.PeerMutex.Lock()
 		r.Cfg.PeerList[request.Name] = parsedIP
-		r.Cfg.PeerMutex.Unlock()
-		if r.OnPeerRemoved != nil && exists {
-			r.OnPeerRemoved(request.Name, existingIP)
-		}
+	}
+	r.Cfg.PeerMutex.Unlock()
+
+	if changed && exists && r.OnPeerRemoved != nil {
+		r.OnPeerRemoved(request.Name, existingIP)
 	}
 
 	return reconcile.Result{}, nil
