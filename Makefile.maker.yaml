@@ -47,3 +47,5 @@ renovate:
     - matchManagers:
         - gomod
       enabled: true
+    - matchFileNames: ["go.mod"]
+      automerge: true
