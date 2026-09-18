@@ -46,29 +46,32 @@ func controlPlaneContainer(clusterName string) string {
 func createCluster(_ context.Context, name, configPath string) (*Cluster, error) {
 	p := cluster.NewProvider()
 
-	// Idempotent: check if exists
 	existing, err := p.List()
-	if err == nil {
-		for _, c := range existing {
-			if c == name {
-				goto load_kubeconfig
-			}
+	if err != nil {
+		fmt.Printf("warning: kind list clusters: %v — assuming cluster does not exist\n", err)
+	}
+	found := false
+	for _, c := range existing {
+		if c == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		if err := p.Create(name, cluster.CreateWithConfigFile(configPath)); err != nil {
+			return nil, fmt.Errorf("kind create %s: %w", name, err)
 		}
 	}
 
-	// Create cluster
-	if err := p.Create(name, cluster.CreateWithConfigFile(configPath)); err != nil {
-		return nil, fmt.Errorf("kind create %s: %w", name, err)
-	}
+	return loadKubeconfig(p, name)
+}
 
-load_kubeconfig:
-	// Get kubeconfig (do NOT merge into ~/.kube/config)
-	kcfg, err := p.KubeConfig(name, false) // false = do not merge
+func loadKubeconfig(p *cluster.Provider, name string) (*Cluster, error) {
+	kcfg, err := p.KubeConfig(name, false)
 	if err != nil {
 		return nil, fmt.Errorf("kind kubeconfig %s: %w", name, err)
 	}
 
-	// Write to isolated temp file
 	f, err := os.CreateTemp("", "kubeconfig-"+name+"-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp kubeconfig: %w", err)
@@ -79,26 +82,21 @@ load_kubeconfig:
 	}
 	kcPath := f.Name()
 
-	// Build client-go client from kubeconfig
 	cfg, err := clientcmd.BuildConfigFromFlags("", kcPath)
 	if err != nil {
 		return nil, fmt.Errorf("build k8s config from kubeconfig: %w", err)
 	}
 
-	// Create controller-runtime client
 	cl, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		return nil, fmt.Errorf("create controller-runtime client: %w", err)
 	}
 
-	// Get worker nodes
-	workers := workerContainers(name)
-
 	return &Cluster{
 		Name:           name,
 		KubeconfigPath: kcPath,
 		Client:         cl,
-		Workers:        workers,
+		Workers:        workerContainers(name),
 		ControlPlane:   controlPlaneContainer(name),
 	}, nil
 }
