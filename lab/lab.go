@@ -75,5 +75,6 @@ func (l *Lab) Teardown(ctx context.Context) error {
 	}
 	err := deleteCluster(ctx, ClusterName)
 	teardownTransitNetwork()
+	os.Remove(l.Cluster.KubeconfigPath)
 	return err
 }
