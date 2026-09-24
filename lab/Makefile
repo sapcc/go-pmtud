@@ -2,9 +2,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 .PHONY: integration integration-keep \
-        down help
+        observe-node observe-replication \
+        down status help
 
+SCRIPTS := scripts
 GINKGO_FLAGS ?=
+
+## Observability (manual inspection)
+
+observe-node: ## tcpdump ICMP frag-needed on a worker node (NODE=worker|worker2)
+	@$(SCRIPTS)/observe.sh node
+
+observe-replication: ## tcpdump UDP 4390 replication traffic (NODE=worker|worker2)
+	@$(SCRIPTS)/observe.sh replication
+
+## Status
+
+status: ## Show lab component status
+	@$(SCRIPTS)/status.sh
 
 ## Cleanup
 
