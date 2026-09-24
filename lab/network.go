@@ -25,7 +25,7 @@ const (
 // transit IP on each worker. util.GetDefaultInterface resolves the capture
 // interface with RouteGet(8.8.8.8), so this flips NFLOG capture to eth1 while
 // leaving the default route — and therefore replication over eth0 — untouched.
-// Idempotent: safe to re-run against an existing lab (LAB_REUSE).
+// Idempotent: safe to re-run against an existing lab.
 func setupTransitNetwork(l *Lab) error {
 	if out, err := exec.Command("docker", "network", "create",
 		"--subnet", TransitSubnet, TransitNetwork).CombinedOutput(); err != nil {

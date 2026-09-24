@@ -22,7 +22,6 @@ and `test/integration/` files carry `//go:build integration`.
 ## 3. Lifecycle (`lab.go`)
 - [ ] `Provision`: create cluster, discover CP + workers, set `BlackholeIP`.
 - [ ] `Teardown`: delete cluster; no-op on `LAB_KEEP`.
-- [ ] `Attach` for `LAB_REUSE`.
 
 ## 4. Forwarding hop + route (`routes.go`)
 - [ ] Control-plane: `ip_forward=1`; `pmtudlab0` (`dummy`, `veth` fallback) @ MTU
@@ -40,7 +39,7 @@ and `test/integration/` files carry `//go:build integration`.
 - [ ] `PMTUTo` (`ip route get` MTU parse) and `FlushRouteCache`.
 
 ## 7. Suite (`test/integration/`)
-- [ ] `suite_test.go`: `RunSpecs` + `BeforeSuite`/`AfterSuite`; `LAB_REUSE`/`LAB_KEEP`.
+- [ ] `suite_test.go`: `RunSpecs` + `BeforeSuite`/`AfterSuite`; `LAB_KEEP`.
 - [ ] `config_test.go`: daemonset arg assertion for `--relay-backend=udp`.
 - [ ] `pmtu_test.go`: `udp` matrix; assert `PMTUTo(w, BlackholeIP) == 1280`
       for every worker; `ReportAfterEach` failure diagnostics (route + hop link).
@@ -53,7 +52,7 @@ and `test/integration/` files carry `//go:build integration`.
 ## 9. Runbook + README + Makefile
 - [ ] `lab/RUNBOOK-real-cluster.md` (deploy → induce frag-needed → observe peer
       convergence + metrics/logs → cleanup).
-- [ ] `lab/README.md`: single-cluster topology, commands, `LAB_REUSE`/`LAB_KEEP`,
+- [ ] `lab/README.md`: single-cluster topology, commands, `LAB_KEEP`,
       prerequisites; link the runbook.
 - [ ] `lab/Makefile` (hand-maintained): `integration` / `integration-keep` targets
       (`go test -tags integration -timeout 20m ./test/integration/...`).

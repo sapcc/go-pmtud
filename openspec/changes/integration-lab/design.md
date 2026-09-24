@@ -173,7 +173,7 @@ no `podinfo`, no per-network docker configs.
 ## Suite (`test/integration/`, `//go:build integration`)
 
 `suite_test.go` — `RunSpecs` + `BeforeSuite`/`AfterSuite` drive the lifecycle;
-`LAB_REUSE`/`LAB_KEEP` env knobs. Iterates `legacy`, `l2`, `udp`, each in an
+`LAB_KEEP` env knob. Iterates `legacy`, `l2`, `udp`, each in an
 `Ordered` context that deploys the backend then runs `configSpecs` + `pmtuSpecs`.
 
 `config_test.go` — assert the deployed DaemonSet carries `--relay-backend=<backend>`
