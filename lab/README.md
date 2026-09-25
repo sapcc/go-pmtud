@@ -57,6 +57,7 @@ make integration-keep      # same but keep lab after for manual inspection
 # Observability (manual inspection only)
 make observe-node        # tcpdump ICMP packets on a worker node
 make observe-replication # tcpdump UDP 4390 replication traffic
+make ping                # trigger ICMP frag-needed manually
 make status              # check lab status
 ```
 
@@ -90,6 +91,7 @@ make integration GINKGO_FLAGS="-v --focus=legacy"
 | `integration-keep` | Run tests but keep lab for manual inspection |
 | `observe-node` | tcpdump ICMP frag-needed on a cluster node |
 | `observe-replication` | tcpdump UDP 4390 replication traffic |
+| `ping` | Send DF-set oversized ping from worker-A to trigger ICMP frag-needed |
 | `status` | Show lab component status |
 | `down` | Delete the Kind cluster |
 

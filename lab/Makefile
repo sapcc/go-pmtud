@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 .PHONY: integration integration-keep \
-        observe-node observe-replication \
+        observe-node observe-replication ping \
         down status help
 
 SCRIPTS := scripts
@@ -15,6 +15,9 @@ observe-node: ## tcpdump ICMP frag-needed on a worker node (NODE=worker|worker2)
 
 observe-replication: ## tcpdump UDP 4390 replication traffic (NODE=worker|worker2)
 	@$(SCRIPTS)/observe.sh replication
+
+ping: ## Send DF-set oversized ping from worker-A to trigger ICMP frag-needed
+	@$(SCRIPTS)/ping.sh
 
 ## Status
 
