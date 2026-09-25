@@ -22,4 +22,4 @@ echo "Expect: ICMP frag-needed (Frag needed and DF set)"
 echo "---"
 # -M do sets the DF bit (Linux iputils-ping). -s 1400 exceeds the 1280 hop MTU.
 # ping exits non-zero when frag-needed is returned; that is expected here.
-docker exec "$CONTAINER" ping -M do -s 1400 -c 3 -W 2 "$BLACKHOLE_IP" || true
+docker exec "$CONTAINER" ping -M "do" -s 1400 -c 3 -W 2 "$BLACKHOLE_IP" || true
