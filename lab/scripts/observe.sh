@@ -52,7 +52,11 @@ case "$SUBCOMMAND" in
     echo "Filter: icmp and icmp[0] == 3 and icmp[1] == 4"
     echo "---"
     ensure_tcpdump "$CONTAINER"
-    docker exec "$CONTAINER" tcpdump -ni any 'icmp and icmp[0] == 3 and icmp[1] == 4' -nvvv
+    IFACE=$(docker exec "$CONTAINER" \
+      ip route get "10.99.0.2" 2>/dev/null \
+      | awk 'NR==1 { for(i=1;i<=NF;i++) if($i=="dev") { print $(i+1); exit } }')
+    IFACE=${IFACE:-eth1}
+    docker exec "$CONTAINER" tcpdump -ni "$IFACE" 'icmp and icmp[0] == 3 and icmp[1] == 4' -nvvv
     ;;
 
   replication)
