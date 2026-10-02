@@ -92,7 +92,7 @@
         "go.mod"
       ],
       "automerge": true,
-      "platformAutomerge": true
+      "platformAutomerge": false
     }
   ],
   "prHourlyLimit": 0,
