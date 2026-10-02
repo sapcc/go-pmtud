@@ -128,16 +128,16 @@ sum(rate(go_pmtud_injected_packets_total[1m])) * 60
 go test ./...
 ```
 
-### E2E tests (Kind)
+### Integration tests (Kind)
 
-The e2e suite provisions a single Kind cluster, deploys go-pmtud, and runs three backend contexts in order — `legacy` (no `--relay-backend` flag, validating the upgrade path), `l2` (raw Ethernet), and `udp` (UDP unicast across L3 boundaries).
+The integration suite provisions a single Kind cluster, deploys go-pmtud, and runs three backend contexts in order — `legacy` (no `--relay-backend` flag, validating the upgrade path), `l2` (raw Ethernet), and `udp` (UDP unicast across L3 boundaries).
 
 Requirements: Docker, [kind](https://kind.sigs.k8s.io/) v0.20+, kubectl.
 
 ```sh
 cd lab/
-make e2e           # provision + test all three backends + teardown
-make e2e-keep      # same but keep the cluster for manual inspection
+make integration           # provision + test all three backends + teardown
+make integration-keep      # same but keep the cluster for manual inspection
 ```
 
 See [`lab/README.md`](lab/README.md) for Ginkgo flags, teardown, and manual inspection.

@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: go-pmtud
+  labels:
+    k8s-app: pmtud
+spec:
+  selector:
+    matchLabels:
+      k8s-app: pmtud
+  template:
+    metadata:
+      labels:
+        k8s-app: pmtud
+    spec:
+      serviceAccountName: go-pmtud
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: go-pmtud
+          image: go-pmtud:local
+          imagePullPolicy: Never
+          command:
+            - /go-pmtud
+          args:
+            - --nflog_group=33
+            - --nodename=$(NODE_NAME)
+            - $(RELAY_BACKEND_ARG)
+            - --iface_names=eth0
+            - --iface_mtu=$(IFACE_MTU)
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi

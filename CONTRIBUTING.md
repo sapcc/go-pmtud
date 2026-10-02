@@ -28,7 +28,7 @@ go test ./...
 
 ### Integration tests (kind)
 
-Integration tests verify that go-pmtud works correctly inside a real multi-node cluster, including actual NFLOG capture, TUN injection, and UDP relay across nodes. An automated single-cluster harness lives under `lab/` — run it with `make -C lab e2e`. To test manually with [kind](https://kind.sigs.k8s.io/):
+Integration tests verify that go-pmtud works correctly inside a real multi-node cluster, including actual NFLOG capture, TUN injection, and UDP relay across nodes. An automated single-cluster harness lives under `lab/` — run it with `make -C lab integration`. To test manually with [kind](https://kind.sigs.k8s.io/):
 
 1. Create a multi-node cluster: `kind create cluster --config kind-config.yaml` (use a config with at least two worker nodes)
 2. Build and load the image: `docker build -t go-pmtud . && kind load docker-image go-pmtud`
