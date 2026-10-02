@@ -92,7 +92,8 @@
       "matchFileNames": [
         "go.mod"
       ],
-      "automerge": true
+      "automerge": true,
+      "platformAutomerge": true
     }
   ],
   "prHourlyLimit": 0,
