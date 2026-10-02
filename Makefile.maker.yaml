@@ -43,7 +43,6 @@ renovate:
     - SchwarzM
     - xsen84
     - goerangudat
-    - rkschamer
   packageRules:
     - matchManagers:
         - gomod
