@@ -8,7 +8,7 @@ require (
 	github.com/florianl/go-nflog/v2 v2.3.0
 	github.com/go-logr/logr v1.4.4
 	github.com/google/nftables v0.3.0
-	github.com/mdlayher/arp v0.0.0-20260528070854-93566ba168e9
+	github.com/mdlayher/arp v0.0.0-20260923112748-e9ee4960293e
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/mdlayher/packet v1.2.0
 	github.com/onsi/ginkgo/v2 v2.33.0
